@@ -6,7 +6,7 @@
 
 Vittiq brings all your finances into one place, automatically tracks your spending, and uses AI to surface smart insights, so you always know where your money is going and how to improve it.
 
-Built as a modern, self-hosted financial ecosystem, Vittiq features a native Android client alongside an AI-driven backend powered by an SQL-based agent capable of understanding natural language financial queries.
+Built as a modern, self-hosted financial ecosystem, Vittiq features an offline-first native Android client alongside an AI-driven backend powered by an SQL-based agent capable of understanding natural language financial queries.
 
 ---
 
@@ -29,8 +29,7 @@ Vittiq is organized as a **monorepo** employing a microservices-based backend ar
 - **UI Framework:** Jetpack Compose
 - **Local Storage:** Room database for offline-first capabilities and secure local caching.
 
-### Backend & AI Services
-
+### Backend & AI Services (Roadmap)
 - **Core Services:** Fast, containerized microservices.
 - **AI Engine:** SQL-based LLM Agent framework (handling text-to-SQL translation and structured data reasoning).
 - **Database:** Relational database optimized for financial transactions and analytical queries.
@@ -42,9 +41,24 @@ Vittiq is organized as a **monorepo** employing a microservices-based backend ar
 ```text
 vittiq/
 ├── android-client/       # Jetpack Compose native Android application
+│   ├── app/src/main/java/com/example/vittiq/
+│   │   ├── data/         # Room DB Entities, DAOs, Repository & AppContainer
+│   │   ├── viewmodel/    # Feature ViewModels (Logs, Overalls, Profile)
+│   │   └── ui/           # Expressive Theme, Navigation Graph & Compose Screens
 ├── backend-services/     # Core microservices (Ingestion, Mapping, Auth)
 ├── ai-agent/             # SQL-based AI agent logic & LLM pipelines
 └── docker-compose.yml    # Local development & orchestration setup
+```
+
+---
+
+## 🛠 Building the Android App
+
+To build the native Android application locally:
+
+```bash
+cd android-client
+./gradlew.bat assembleDebug
 ```
 
 ---
