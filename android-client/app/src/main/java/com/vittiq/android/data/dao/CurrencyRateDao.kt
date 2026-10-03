@@ -22,6 +22,12 @@ interface CurrencyRateDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(rates: List<CurrencyRate>)
 
+    @Query("SELECT * FROM currency_rates ORDER BY currencyCode ASC")
+    suspend fun getAllRatesSync(): List<CurrencyRate>
+
+    @Query("DELETE FROM currency_rates")
+    suspend fun clearAll()
+
     @Update
     suspend fun updateRate(rate: CurrencyRate)
 }

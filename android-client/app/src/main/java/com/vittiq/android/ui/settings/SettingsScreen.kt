@@ -1,5 +1,9 @@
 package com.vittiq.android.ui.settings
 
+import android.content.ContentResolver
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -23,12 +27,15 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.CurrencyExchange
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -45,11 +52,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.vittiq.android.data.backup.RestoreMode
 import com.vittiq.android.data.model.CurrencyRate
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 private val InkBlack = Color(0xFF111827)
 private val CharcoalBlue = Color(0xFF334155)
@@ -61,13 +73,36 @@ private val BorderStroke = Color(0xFFE2E8F0)
 @Composable
 fun SettingsScreen(
     currencyRates: List<CurrencyRate>,
+    uiState: SettingsUiState,
     onRateUpdated: (CurrencyRate) -> Unit,
     onManageAccountsClick: () -> Unit,
     onManageTransactionCategoriesClick: () -> Unit,
+    onExportBackup: (Uri, ContentResolver) -> Unit = { _, _ -> },
+    onPrepareRestore: (Uri, ContentResolver) -> Unit = { _, _ -> },
+    onConfirmRestore: (RestoreMode) -> Unit = {},
+    onDismissRestoreDialog: () -> Unit = {},
+    onClearBackupMessage: () -> Unit = {},
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var editingRate by remember { mutableStateOf<CurrencyRate?>(null) }
+    val context = LocalContext.current
+
+    val exportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/zip")
+    ) { uri ->
+        if (uri != null) {
+            onExportBackup(uri, context.contentResolver)
+        }
+    }
+
+    val importLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            onPrepareRestore(uri, context.contentResolver)
+        }
+    }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -328,6 +363,131 @@ fun SettingsScreen(
                     }
                 }
 
+                // Section: Data & Storage (Backup & Restore)
+                item {
+                    Text(
+                        text = "DATA & STORAGE",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = CharcoalBlue,
+                        letterSpacing = 1.sp,
+                        modifier = Modifier.padding(start = 4.dp, top = 8.dp, bottom = 4.dp)
+                    )
+
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(SurfaceWhite)
+                            .border(1.dp, BorderStroke, RoundedCornerShape(20.dp))
+                    ) {
+                        // Export Backup Row
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+                                    exportLauncher.launch("vittiq_backup_$timestamp.zip")
+                                }
+                                .padding(16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFFFEF3C7)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.CloudUpload,
+                                        contentDescription = null,
+                                        tint = InkBlack,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column {
+                                    Text(
+                                        text = "Export Backup (.zip)",
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = InkBlack
+                                    )
+                                    Text(
+                                        text = "Save your accounts, categories, and transactions to a local file or Google Drive.",
+                                        fontSize = 12.sp,
+                                        color = CharcoalBlue
+                                    )
+                                }
+                            }
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                contentDescription = null,
+                                tint = CharcoalBlue
+                            )
+                        }
+
+                        HorizontalDivider(color = Color(0xFFF1F5F9))
+
+                        // Import Backup Row
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    importLauncher.launch(arrayOf("application/zip", "application/x-zip-compressed", "*/*"))
+                                }
+                                .padding(16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFFCCFBF1)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.CloudDownload,
+                                        contentDescription = null,
+                                        tint = InkBlack,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column {
+                                    Text(
+                                        text = "Import Backup (.zip)",
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = InkBlack
+                                    )
+                                    Text(
+                                        text = "Restore or merge your financial data from a backup archive.",
+                                        fontSize = 12.sp,
+                                        color = CharcoalBlue
+                                    )
+                                }
+                            }
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                contentDescription = null,
+                                tint = CharcoalBlue
+                            )
+                        }
+                    }
+                }
+
                 // Section: About
                 item {
                     Text(
@@ -393,6 +553,145 @@ fun SettingsScreen(
                 onRateUpdated(updatedRate)
                 editingRate = null
             }
+        )
+    }
+
+    // Restore Confirmation Dialog
+    if (uiState.pendingRestorePayload != null) {
+        val payload = uiState.pendingRestorePayload
+        val metadata = payload.metadata
+        val formattedDate = SimpleDateFormat("dd MMMM yyyy, hh:mm a", Locale.getDefault()).format(Date(metadata.exportTimestamp))
+
+        AlertDialog(
+            onDismissRequest = onDismissRestoreDialog,
+            title = {
+                Text(
+                    text = "Restore Backup",
+                    fontWeight = FontWeight.Bold,
+                    color = InkBlack,
+                    fontSize = 18.sp
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        text = "Backup snapshot created on $formattedDate (v${metadata.appVersion}).",
+                        fontSize = 13.sp,
+                        color = CharcoalBlue
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(BrightSnow)
+                            .border(1.dp, BorderStroke, RoundedCornerShape(12.dp))
+                            .padding(12.dp)
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("• Transactions: ${metadata.transactionCount}", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = InkBlack)
+                            Text("• Accounts: ${metadata.accountCount}", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = InkBlack)
+                            Text("• Categories: ${metadata.transactionCategoryCount}", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = InkBlack)
+                        }
+                    }
+                    Text(
+                        text = "Select recovery strategy:",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = InkBlack
+                    )
+                    Text(
+                        text = "• Merge (Keep Existing): Inserts new transactions and accounts without modifying existing data.",
+                        fontSize = 12.sp,
+                        color = CharcoalBlue
+                    )
+                    Text(
+                        text = "• Replace (Full Overwrite): Wipes all local records and restores the backup snapshot completely.",
+                        fontSize = 12.sp,
+                        color = Color(0xFFDC2626)
+                    )
+                }
+            },
+            confirmButton = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = { onConfirmRestore(RestoreMode.MERGE) },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = AmberGold,
+                            contentColor = InkBlack
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Merge (Keep Existing)", fontWeight = FontWeight.Bold)
+                    }
+
+                    Button(
+                        onClick = { onConfirmRestore(RestoreMode.REPLACE) },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFFEE2E2),
+                            contentColor = Color(0xFFDC2626)
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Replace (Full Overwrite)", fontWeight = FontWeight.Bold)
+                    }
+
+                    TextButton(
+                        onClick = onDismissRestoreDialog,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Cancel", color = CharcoalBlue)
+                    }
+                }
+            },
+            containerColor = SurfaceWhite
+        )
+    }
+
+    // Loading Dialog
+    if (uiState.isBackupLoading) {
+        AlertDialog(
+            onDismissRequest = {},
+            title = null,
+            text = {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    CircularProgressIndicator(color = AmberGold)
+                    Text("Processing backup, please wait...", fontSize = 14.sp, color = InkBlack)
+                }
+            },
+            confirmButton = {},
+            containerColor = SurfaceWhite
+        )
+    }
+
+    // Result Notification Dialog
+    if (uiState.backupMessage != null) {
+        AlertDialog(
+            onDismissRequest = onClearBackupMessage,
+            title = {
+                Text("Backup & Restore", fontWeight = FontWeight.Bold, color = InkBlack)
+            },
+            text = {
+                Text(uiState.backupMessage, color = CharcoalBlue, fontSize = 14.sp)
+            },
+            confirmButton = {
+                Button(
+                    onClick = onClearBackupMessage,
+                    colors = ButtonDefaults.buttonColors(containerColor = AmberGold, contentColor = InkBlack),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("OK", fontWeight = FontWeight.Bold)
+                }
+            },
+            containerColor = SurfaceWhite
         )
     }
 }

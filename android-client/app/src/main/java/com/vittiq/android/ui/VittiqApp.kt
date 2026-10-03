@@ -112,9 +112,15 @@ fun VittiqApp(
         ScreenRoute.Settings -> {
             SettingsScreen(
                 currencyRates = settingsState.currencyRates,
+                uiState = settingsState,
                 onRateUpdated = { settingsViewModel.updateCurrencyRate(it) },
                 onManageAccountsClick = { currentRoute = ScreenRoute.ManageAccounts },
                 onManageTransactionCategoriesClick = { currentRoute = ScreenRoute.ManageTransactionCategories },
+                onExportBackup = { uri, cr -> settingsViewModel.exportBackup(uri, cr) },
+                onPrepareRestore = { uri, cr -> settingsViewModel.prepareRestore(uri, cr) },
+                onConfirmRestore = { mode -> settingsViewModel.confirmRestore(mode) },
+                onDismissRestoreDialog = { settingsViewModel.dismissRestoreDialog() },
+                onClearBackupMessage = { settingsViewModel.clearBackupMessage() },
                 onBackClick = { currentRoute = ScreenRoute.Main }
             )
         }

@@ -62,6 +62,12 @@ interface AccountDao {
     @Query("UPDATE accounts SET currentBalance = :newBalance WHERE id = :accountId")
     suspend fun updateBalance(accountId: String, newBalance: Double)
 
+    @Query("SELECT * FROM accounts ORDER BY name ASC")
+    suspend fun getAllAccountsSync(): List<Account>
+
+    @Query("DELETE FROM accounts")
+    suspend fun clearAll()
+
     @Query("UPDATE accounts SET currentBalance = currentBalance + :delta WHERE id = :accountId")
     suspend fun adjustBalance(accountId: String, delta: Double)
 }

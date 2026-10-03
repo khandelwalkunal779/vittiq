@@ -2,8 +2,10 @@ package com.vittiq.android.data.model
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
+import kotlinx.serialization.Serializable
 import java.util.UUID
 
+@Serializable
 @Entity(tableName = "transaction_categories")
 data class TransactionCategory(
     @PrimaryKey

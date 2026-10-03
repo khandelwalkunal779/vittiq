@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
+import androidx.compose.material.icons.outlined.CloudUpload
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Settings
@@ -260,6 +261,65 @@ fun ProfileScreen(
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = "Manage accounts, categories & exchange rates",
+                            fontSize = 12.sp,
+                            color = CharcoalBlue
+                        )
+                    }
+
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+                        contentDescription = null,
+                        tint = CharcoalBlue.copy(alpha = 0.6f),
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
+            }
+        }
+
+        // 3b. Backup & Restore Shortcut Card
+        item {
+            Card(
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.5.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, CardBorderSubtle, RoundedCornerShape(20.dp))
+                    .clickable { onNavigateToSettings() }
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(CircleShape)
+                            .background(OceanMistSoft),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.CloudUpload,
+                            contentDescription = "Backup & Restore",
+                            tint = OceanMist,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(14.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Backup & Restore (.zip)",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = InkBlack
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "Export snapshots or restore with merge & replace",
                             fontSize = 12.sp,
                             color = CharcoalBlue
                         )

@@ -17,6 +17,12 @@ interface TransactionCategoryDao {
     @Query("SELECT * FROM transaction_categories ORDER BY isArchived ASC, displayOrder ASC, name ASC")
     fun getAllCategories(): Flow<List<TransactionCategory>>
 
+    @Query("SELECT * FROM transaction_categories ORDER BY displayOrder ASC, name ASC")
+    suspend fun getAllCategoriesSync(): List<TransactionCategory>
+
+    @Query("DELETE FROM transaction_categories")
+    suspend fun clearAll()
+
     @Query("SELECT COUNT(*) FROM transaction_categories")
     suspend fun getCount(): Int
 

@@ -17,6 +17,9 @@ import com.vittiq.android.data.model.Transaction
 import com.vittiq.android.data.model.TransactionCategory
 import com.vittiq.android.data.model.TransactionType
 import com.vittiq.android.data.model.UserProfile
+import com.vittiq.android.data.backup.BackupMetadata
+import com.vittiq.android.data.backup.BackupPayload
+import com.vittiq.android.data.backup.MergeResult
 import kotlinx.coroutines.flow.Flow
 
 interface VittiqRepository {
@@ -67,6 +70,11 @@ interface VittiqRepository {
     // Currency Rates
     fun getAllCurrencyRates(): Flow<List<CurrencyRate>>
     suspend fun updateCurrencyRate(rate: CurrencyRate)
+
+    // Backup & Restore
+    suspend fun getBackupPayload(): BackupPayload
+    suspend fun restoreReplace(payload: BackupPayload)
+    suspend fun restoreMerge(payload: BackupPayload): MergeResult
 }
 
 class DefaultVittiqRepository(
@@ -277,5 +285,172 @@ class DefaultVittiqRepository(
 
     override suspend fun updateCurrencyRate(rate: CurrencyRate) {
         currencyRateDao.updateRate(rate)
+    }
+
+    override suspend fun getBackupPayload(): BackupPayload {
+        val categories = categoryDao.getAllCategoriesSync()
+        val accounts = accountDao.getAllAccountsSync()
+        val transactions = transactionDao.getAllTransactionsSync()
+        val txCategories = transactionCategoryDao.getAllCategoriesSync()
+        val rates = currencyRateDao.getAllRatesSync()
+        val profile = userProfileDao.getUserProfileSync()
+
+        val metadata = BackupMetadata(
+            schemaVersion = 3,
+            exportTimestamp = System.currentTimeMillis(),
+            appVersion = "1.0",
+            accountCategoryCount = categories.size,
+            accountCount = accounts.size,
+            transactionCount = transactions.size,
+            transactionCategoryCount = txCategories.size,
+            currencyRateCount = rates.size,
+            userProfileCount = if (profile != null) 1 else 0
+        )
+
+        return BackupPayload(
+            metadata = metadata,
+            accountCategories = categories,
+            accounts = accounts,
+            transactions = transactions,
+            transactionCategories = txCategories,
+            currencyRates = rates,
+            userProfile = profile
+        )
+    }
+
+    override suspend fun restoreReplace(payload: BackupPayload) {
+        database.withTransaction {
+            // Delete child tables first to avoid foreign key issues
+            transactionDao.clearAll()
+            accountDao.clearAll()
+            categoryDao.clearAll()
+            transactionCategoryDao.clearAll()
+            currencyRateDao.clearAll()
+            userProfileDao.clearAll()
+
+            // Insert in parent-to-child order
+            categoryDao.insertAll(payload.accountCategories)
+            accountDao.insertAll(payload.accounts)
+            transactionCategoryDao.insertAll(payload.transactionCategories)
+            transactionDao.insertAll(payload.transactions)
+            currencyRateDao.insertAll(payload.currencyRates)
+            payload.userProfile?.let { userProfileDao.insert(it) }
+        }
+    }
+
+    override suspend fun restoreMerge(payload: BackupPayload): MergeResult {
+        return database.withTransaction {
+            var addedCategories = 0
+            var addedAccounts = 0
+            var importedTransactions = 0
+            var skippedTransactions = 0
+
+            // 1. Account Categories: match by name
+            val localCategories = categoryDao.getAllCategoriesSync().toMutableList()
+            val categoryIdMap = mutableMapOf<String, String>()
+
+            for (backupCat in payload.accountCategories) {
+                val existing = localCategories.find { it.name.equals(backupCat.name, ignoreCase = true) }
+                if (existing != null) {
+                    categoryIdMap[backupCat.id] = existing.id
+                } else {
+                    categoryDao.insert(backupCat)
+                    localCategories.add(backupCat)
+                    categoryIdMap[backupCat.id] = backupCat.id
+                    addedCategories++
+                }
+            }
+
+            // 2. Transaction Categories: match by name
+            val localTxCategories = transactionCategoryDao.getAllCategoriesSync().toMutableList()
+            for (backupTxCat in payload.transactionCategories) {
+                val exists = localTxCategories.any { it.name.equals(backupTxCat.name, ignoreCase = true) }
+                if (!exists) {
+                    transactionCategoryDao.insert(backupTxCat)
+                    localTxCategories.add(backupTxCat)
+                }
+            }
+
+            // 3. Accounts: match by name and resolved categoryId
+            val localAccounts = accountDao.getAllAccountsSync().toMutableList()
+            val accountIdMap = mutableMapOf<String, String>()
+
+            for (backupAcc in payload.accounts) {
+                val resolvedCatId = categoryIdMap[backupAcc.categoryId] ?: backupAcc.categoryId
+                val existing = localAccounts.find {
+                    it.name.equals(backupAcc.name, ignoreCase = true) && it.categoryId == resolvedCatId
+                }
+                if (existing != null) {
+                    accountIdMap[backupAcc.id] = existing.id
+                } else {
+                    val newAcc = backupAcc.copy(
+                        categoryId = resolvedCatId,
+                        currentBalance = backupAcc.initialBalance
+                    )
+                    accountDao.insert(newAcc)
+                    localAccounts.add(newAcc)
+                    accountIdMap[backupAcc.id] = newAcc.id
+                    addedAccounts++
+                }
+            }
+
+            // 4. Transactions: deduplicate and insert
+            val localTransactions = transactionDao.getAllTransactionsSync()
+            val sortedBackupTransactions = payload.transactions.sortedBy { it.timestamp }
+
+            for (backupTx in sortedBackupTransactions) {
+                val isDuplicate = localTransactions.any { localTx ->
+                    localTx.id == backupTx.id || (
+                        localTx.timestamp == backupTx.timestamp &&
+                        localTx.amount == backupTx.amount &&
+                        localTx.name.equals(backupTx.name, ignoreCase = true)
+                    )
+                }
+
+                if (isDuplicate) {
+                    skippedTransactions++
+                    continue
+                }
+
+                val resolvedAccId = accountIdMap[backupTx.accountId] ?: backupTx.accountId
+                val resolvedToAccId = backupTx.toAccountId?.let { accountIdMap[it] ?: it }
+
+                val newTx = backupTx.copy(
+                    accountId = resolvedAccId,
+                    toAccountId = resolvedToAccId
+                )
+
+                transactionDao.insert(newTx)
+                importedTransactions++
+
+                when (newTx.type) {
+                    TransactionType.CREDIT -> {
+                        accountDao.adjustBalance(newTx.accountId, newTx.amount)
+                    }
+                    TransactionType.DEBIT -> {
+                        accountDao.adjustBalance(newTx.accountId, -newTx.amount)
+                    }
+                    TransactionType.TRANSFER -> {
+                        accountDao.adjustBalance(newTx.accountId, -newTx.amount)
+                        newTx.toAccountId?.let { toId ->
+                            accountDao.adjustBalance(toId, newTx.amount)
+                        }
+                    }
+                }
+            }
+
+            // 5. Overwrite User Profile and Currency Rates with backup values
+            payload.userProfile?.let { userProfileDao.insert(it) }
+            if (payload.currencyRates.isNotEmpty()) {
+                currencyRateDao.insertAll(payload.currencyRates)
+            }
+
+            MergeResult(
+                addedCategoriesCount = addedCategories,
+                addedAccountsCount = addedAccounts,
+                importedTransactionsCount = importedTransactions,
+                skippedTransactionsCount = skippedTransactions
+            )
+        }
     }
 }

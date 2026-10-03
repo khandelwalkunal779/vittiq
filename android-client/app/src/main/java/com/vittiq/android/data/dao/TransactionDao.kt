@@ -38,6 +38,12 @@ interface TransactionDao {
     @Update
     suspend fun update(transaction: Transaction)
 
+    @Query("SELECT * FROM transactions ORDER BY timestamp DESC")
+    suspend fun getAllTransactionsSync(): List<Transaction>
+
+    @Query("DELETE FROM transactions")
+    suspend fun clearAll()
+
     @Delete
     suspend fun delete(transaction: Transaction)
 }

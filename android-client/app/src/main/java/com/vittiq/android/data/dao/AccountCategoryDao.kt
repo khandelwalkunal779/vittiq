@@ -35,6 +35,12 @@ interface AccountCategoryDao {
     @Update
     suspend fun update(category: AccountCategory)
 
+    @Query("SELECT * FROM account_categories ORDER BY displayOrder ASC, name ASC")
+    suspend fun getAllCategoriesSync(): List<AccountCategory>
+
+    @Query("DELETE FROM account_categories")
+    suspend fun clearAll()
+
     @Delete
     suspend fun delete(category: AccountCategory)
 }
