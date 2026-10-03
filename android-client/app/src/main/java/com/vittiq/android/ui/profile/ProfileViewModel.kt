@@ -35,6 +35,12 @@ class ProfileViewModel(
         initialValue = ProfileUiState()
     )
 
+    fun updateUserProfile(profile: UserProfile) {
+        viewModelScope.launch {
+            repository.updateUserProfile(profile)
+        }
+    }
+
     fun updateCurrencyRate(rate: CurrencyRate) {
         viewModelScope.launch {
             repository.updateCurrencyRate(rate)

@@ -296,7 +296,7 @@ class DefaultVittiqRepository(
         val profile = userProfileDao.getUserProfileSync()
 
         val metadata = BackupMetadata(
-            schemaVersion = 3,
+            schemaVersion = 4,
             exportTimestamp = System.currentTimeMillis(),
             appVersion = "1.0",
             accountCategoryCount = categories.size,

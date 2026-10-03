@@ -12,6 +12,7 @@ data class UserProfile(
     val firstName: String,
     val lastName: String,
     val handle: String,
-    val avatarInitial: String
+    val avatarInitial: String,
+    val avatarPath: String? = null
 )
 

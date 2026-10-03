@@ -17,6 +17,7 @@ import com.vittiq.android.data.model.AccountCategory
 import com.vittiq.android.data.model.CurrencyRate
 import com.vittiq.android.data.model.Transaction
 import com.vittiq.android.data.model.TransactionCategory
+import androidx.room.migration.Migration
 import com.vittiq.android.data.model.UserProfile
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -31,7 +32,7 @@ import kotlinx.coroutines.launch
         UserProfile::class,
         CurrencyRate::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -78,6 +79,12 @@ abstract class VittiqDatabase : RoomDatabase() {
             "Other"
         )
 
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE user_profiles ADD COLUMN avatarPath TEXT DEFAULT NULL")
+            }
+        }
+
         fun getDatabase(
             context: Context,
             scope: CoroutineScope = CoroutineScope(Dispatchers.IO)
@@ -88,6 +95,7 @@ abstract class VittiqDatabase : RoomDatabase() {
                     VittiqDatabase::class.java,
                     "vittiq.db"
                 )
+                    .addMigrations(MIGRATION_3_4)
                     .fallbackToDestructiveMigration(true)
                     .addCallback(VittiqDatabaseCallback(scope))
                     .build()

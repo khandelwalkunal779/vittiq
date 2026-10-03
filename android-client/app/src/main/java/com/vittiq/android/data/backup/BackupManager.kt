@@ -132,7 +132,7 @@ class BackupManager(
             } ?: throw IllegalStateException("Could not open input stream for URI: $uri")
 
             val finalMetadata = metadata ?: throw IllegalArgumentException("metadata.json missing from backup archive.")
-            if (finalMetadata.schemaVersion > 3) {
+            if (finalMetadata.schemaVersion > 4) {
                 throw IllegalArgumentException("Unsupported backup schema version: ${finalMetadata.schemaVersion}.")
             }
 

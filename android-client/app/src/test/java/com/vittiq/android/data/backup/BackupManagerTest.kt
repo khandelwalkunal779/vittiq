@@ -31,7 +31,7 @@ class BackupManagerTest {
     @Test
     fun testPayloadSerializationAndDeserialization() {
         val metadata = BackupMetadata(
-            schemaVersion = 3,
+            schemaVersion = 4,
             exportTimestamp = 1700000000000L,
             appVersion = "1.0",
             accountCategoryCount = 1,
@@ -71,7 +71,7 @@ class BackupManagerTest {
         val accountsJson = json.encodeToString(payload.accounts)
         val txJson = json.encodeToString(payload.transactions)
 
-        assertTrue(metaJson.contains("\"schemaVersion\": 3"))
+        assertTrue(metaJson.contains("\"schemaVersion\": 4"))
         assertTrue(accountsJson.contains("\"Wallet\""))
         assertTrue(txJson.contains("\"Lunch\""))
 
@@ -80,7 +80,7 @@ class BackupManagerTest {
         val parsedAccounts = json.decodeFromString<List<Account>>(accountsJson)
         val parsedTxs = json.decodeFromString<List<Transaction>>(txJson)
 
-        assertEquals(3, parsedMeta.schemaVersion)
+        assertEquals(4, parsedMeta.schemaVersion)
         assertEquals(1, parsedAccounts.size)
         assertEquals("Wallet", parsedAccounts[0].name)
         assertEquals(1, parsedTxs.size)
@@ -91,7 +91,7 @@ class BackupManagerTest {
     @Test
     fun testZipArchivePackingAndUnpacking() {
         val meta = BackupMetadata(
-            schemaVersion = 3,
+            schemaVersion = 4,
             exportTimestamp = 1700000000000L,
             accountCount = 2,
             transactionCount = 5
@@ -123,7 +123,7 @@ class BackupManagerTest {
         }
 
         assertNotNull(foundMeta)
-        assertEquals(3, foundMeta?.schemaVersion)
+        assertEquals(4, foundMeta?.schemaVersion)
         assertEquals(2, foundMeta?.accountCount)
         assertEquals(5, foundMeta?.transactionCount)
     }

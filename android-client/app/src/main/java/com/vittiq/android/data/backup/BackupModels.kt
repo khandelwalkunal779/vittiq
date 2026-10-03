@@ -10,7 +10,7 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class BackupMetadata(
-    val schemaVersion: Int = 3,
+    val schemaVersion: Int = 4,
     val exportTimestamp: Long,
     val appVersion: String = "1.0",
     val accountCategoryCount: Int = 0,

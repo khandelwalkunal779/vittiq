@@ -525,15 +525,23 @@ fun SettingsScreen(
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Text(
-                                    text = "Vittiq Android",
+                                    text = "Vittiq",
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = InkBlack
                                 )
+                                Spacer(modifier = Modifier.height(2.dp))
                                 Text(
-                                    text = "Version 1.0.0 · Offline-First Architecture",
+                                    text = "Designed & Developed by",
                                     fontSize = 12.sp,
                                     color = CharcoalBlue
+                                )
+                                Spacer(modifier = Modifier.height(1.dp))
+                                Text(
+                                    text = "😎Kunal Khandelwal",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = InkBlack
                                 )
                             }
                         }

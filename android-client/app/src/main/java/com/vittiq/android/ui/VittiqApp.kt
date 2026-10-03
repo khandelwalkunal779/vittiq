@@ -223,6 +223,7 @@ fun VittiqApp(
                         VittiqTab.PROFILE -> {
                             ProfileScreen(
                                 uiState = profileState,
+                                onUpdateProfile = { profileViewModel.updateUserProfile(it) },
                                 onNavigateToSettings = { currentRoute = ScreenRoute.Settings }
                             )
                         }
