@@ -31,6 +31,7 @@ import com.vittiq.android.ui.logs.LogsViewModel
 import com.vittiq.android.ui.profile.ProfileScreen
 import com.vittiq.android.ui.profile.ProfileViewModel
 import com.vittiq.android.ui.settings.ManageAccountsScreen
+import com.vittiq.android.ui.settings.ManageTransactionCategoriesScreen
 import com.vittiq.android.ui.settings.SettingsScreen
 import com.vittiq.android.ui.settings.SettingsViewModel
 import com.vittiq.android.ui.shared.SharedScreen
@@ -41,6 +42,7 @@ sealed interface ScreenRoute {
     data class AllAccounts(val focusCategoryId: String? = null) : ScreenRoute
     data object Settings : ScreenRoute
     data object ManageAccounts : ScreenRoute
+    data object ManageTransactionCategories : ScreenRoute
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -88,6 +90,7 @@ fun VittiqApp(
         } else {
             currentRoute = when (currentRoute) {
                 ScreenRoute.ManageAccounts -> ScreenRoute.Settings
+                ScreenRoute.ManageTransactionCategories -> ScreenRoute.Settings
                 else -> ScreenRoute.Main
             }
         }
@@ -111,6 +114,7 @@ fun VittiqApp(
                 currencyRates = settingsState.currencyRates,
                 onRateUpdated = { settingsViewModel.updateCurrencyRate(it) },
                 onManageAccountsClick = { currentRoute = ScreenRoute.ManageAccounts },
+                onManageTransactionCategoriesClick = { currentRoute = ScreenRoute.ManageTransactionCategories },
                 onBackClick = { currentRoute = ScreenRoute.Main }
             )
         }
@@ -129,6 +133,17 @@ fun VittiqApp(
                     settingsViewModel.deleteOrArchiveAccount(accId, onResult)
                 },
                 onUnarchiveAccount = { settingsViewModel.unarchiveAccount(it) },
+                onBackClick = { currentRoute = ScreenRoute.Settings }
+            )
+        }
+
+        ScreenRoute.ManageTransactionCategories -> {
+            ManageTransactionCategoriesScreen(
+                categories = settingsState.transactionCategories,
+                onAddCategory = { settingsViewModel.addTransactionCategory(it) },
+                onUpdateCategory = { settingsViewModel.updateTransactionCategory(it) },
+                onArchiveCategory = { settingsViewModel.archiveTransactionCategory(it) },
+                onUnarchiveCategory = { settingsViewModel.unarchiveTransactionCategory(it) },
                 onBackClick = { currentRoute = ScreenRoute.Settings }
             )
         }
@@ -207,6 +222,7 @@ fun VittiqApp(
                     AddTransactionSheet(
                         accounts = homeState.accountsWithCategory,
                         currencyRates = homeState.currencyRates,
+                        transactionCategories = settingsState.transactionCategories,
                         onDismiss = { isAddSheetOpen = false },
                         onSaveTransaction = { transaction ->
                             homeViewModel.addTransaction(transaction)

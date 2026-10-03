@@ -23,6 +23,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBackIosNew
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.outlined.DirectionsCar
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.LocalCafe
@@ -274,7 +275,12 @@ private fun DateGroupCard(transactions: List<Transaction>) {
 @Composable
 internal fun TransactionRow(transaction: Transaction) {
     val isCredit = transaction.type == TransactionType.CREDIT
-    val iconInfo = getCategoryVisuals(transaction.category, transaction.name)
+    val isTransfer = transaction.type == TransactionType.TRANSFER
+    val iconInfo = if (isTransfer) {
+        Triple(Icons.Default.SwapHoriz, AmberGoldSoft, InkBlack)
+    } else {
+        getCategoryVisuals(transaction.category, transaction.name)
+    }
 
     Row(
         modifier = Modifier
@@ -300,7 +306,7 @@ internal fun TransactionRow(transaction: Transaction) {
 
         Spacer(modifier = Modifier.width(14.dp))
 
-        // Title & Source Account
+        // Title & Source Account / Route
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = transaction.name,
@@ -318,8 +324,13 @@ internal fun TransactionRow(transaction: Transaction) {
 
         // Amount & Category label
         Column(horizontalAlignment = Alignment.End) {
+            val amountFormatted = if (isTransfer) {
+                Formatters.formatInr(transaction.amount)
+            } else {
+                Formatters.formatTransactionAmount(transaction.amount, isCredit)
+            }
             Text(
-                text = Formatters.formatTransactionAmount(transaction.amount, isCredit),
+                text = amountFormatted,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,
                 color = if (isCredit) OceanMist else InkBlack
@@ -376,6 +387,8 @@ private fun EmptyLogsCard() {
 internal fun getCategoryVisuals(category: String, title: String): Triple<ImageVector, Color, Color> {
     val lower = "${category.lowercase()} ${title.lowercase()}"
     return when {
+        lower.contains("transfer") ->
+            Triple(Icons.Default.SwapHoriz, AmberGoldSoft, InkBlack)
         lower.contains("paycheck") || lower.contains("income") ->
             Triple(Icons.Outlined.Work, OceanMistSoft, Color(0xFF0F766E))
         lower.contains("rent") || lower.contains("housing") ->

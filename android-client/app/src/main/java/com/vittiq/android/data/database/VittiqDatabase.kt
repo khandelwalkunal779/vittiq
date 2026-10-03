@@ -9,12 +9,14 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.vittiq.android.data.dao.AccountCategoryDao
 import com.vittiq.android.data.dao.AccountDao
 import com.vittiq.android.data.dao.CurrencyRateDao
+import com.vittiq.android.data.dao.TransactionCategoryDao
 import com.vittiq.android.data.dao.TransactionDao
 import com.vittiq.android.data.dao.UserProfileDao
 import com.vittiq.android.data.model.Account
 import com.vittiq.android.data.model.AccountCategory
 import com.vittiq.android.data.model.CurrencyRate
 import com.vittiq.android.data.model.Transaction
+import com.vittiq.android.data.model.TransactionCategory
 import com.vittiq.android.data.model.UserProfile
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -25,10 +27,11 @@ import kotlinx.coroutines.launch
         AccountCategory::class,
         Account::class,
         Transaction::class,
+        TransactionCategory::class,
         UserProfile::class,
         CurrencyRate::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -37,6 +40,7 @@ abstract class VittiqDatabase : RoomDatabase() {
     abstract fun accountCategoryDao(): AccountCategoryDao
     abstract fun accountDao(): AccountDao
     abstract fun transactionDao(): TransactionDao
+    abstract fun transactionCategoryDao(): TransactionCategoryDao
     abstract fun userProfileDao(): UserProfileDao
     abstract fun currencyRateDao(): CurrencyRateDao
 
@@ -59,6 +63,20 @@ abstract class VittiqDatabase : RoomDatabase() {
         const val ACCOUNT_ID_DEFAULT_INVESTMENTS = "acc-default-investments"
         const val ACCOUNT_ID_DEFAULT_EWALLETS = "acc-default-ewallets"
         const val ACCOUNT_ID_DEFAULT_OTHERS = "acc-default-others"
+
+        val DEFAULT_TRANSACTION_CATEGORIES = listOf(
+            "Food & Dining",
+            "Groceries",
+            "Income",
+            "Transportation",
+            "Housing",
+            "Coffee",
+            "Entertainment",
+            "Shopping",
+            "Utilities",
+            "Transfer",
+            "Other"
+        )
 
         fun getDatabase(
             context: Context,
@@ -99,9 +117,26 @@ private class VittiqDatabaseCallback(
                 if (database.accountCategoryDao().getCount() == 0) {
                     populateCleanSlateData(database)
                 }
+                if (database.transactionCategoryDao().getCount() == 0) {
+                    seedDefaultTransactionCategories(database)
+                }
             }
         }
     }
+}
+
+suspend fun seedDefaultTransactionCategories(database: VittiqDatabase) {
+    val txCatDao = database.transactionCategoryDao()
+    val categories = VittiqDatabase.DEFAULT_TRANSACTION_CATEGORIES.mapIndexed { index, name ->
+        TransactionCategory(
+            id = "tx-cat-${name.lowercase().replace(" ", "-").replace("&", "and")}",
+            name = name,
+            displayOrder = index + 1,
+            isArchived = false,
+            isDefault = true
+        )
+    }
+    txCatDao.insertAll(categories)
 }
 
 suspend fun populateCleanSlateData(database: VittiqDatabase) {
@@ -226,6 +261,8 @@ suspend fun populateCleanSlateData(database: VittiqDatabase) {
     )
     currencyRateDao.insertAll(initialRates)
 
+    // 5. Seed Default Transaction Categories
+    seedDefaultTransactionCategories(database)
+
     // Clean-slate mandate: ZERO transactions seeded
 }
-

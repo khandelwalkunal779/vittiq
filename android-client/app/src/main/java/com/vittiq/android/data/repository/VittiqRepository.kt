@@ -4,6 +4,7 @@ import androidx.room.withTransaction
 import com.vittiq.android.data.dao.AccountCategoryDao
 import com.vittiq.android.data.dao.AccountDao
 import com.vittiq.android.data.dao.CurrencyRateDao
+import com.vittiq.android.data.dao.TransactionCategoryDao
 import com.vittiq.android.data.dao.TransactionDao
 import com.vittiq.android.data.dao.UserProfileDao
 import com.vittiq.android.data.database.VittiqDatabase
@@ -13,6 +14,7 @@ import com.vittiq.android.data.model.AccountWithCategory
 import com.vittiq.android.data.model.CategoryWithAccounts
 import com.vittiq.android.data.model.CurrencyRate
 import com.vittiq.android.data.model.Transaction
+import com.vittiq.android.data.model.TransactionCategory
 import com.vittiq.android.data.model.TransactionType
 import com.vittiq.android.data.model.UserProfile
 import kotlinx.coroutines.flow.Flow
@@ -48,6 +50,15 @@ interface VittiqRepository {
     suspend fun addTransaction(transaction: Transaction)
     suspend fun deleteTransaction(transaction: Transaction)
 
+    // Transaction Categories
+    fun getAllActiveTransactionCategories(): Flow<List<TransactionCategory>>
+    fun getAllTransactionCategories(): Flow<List<TransactionCategory>>
+    suspend fun insertTransactionCategory(category: TransactionCategory)
+    suspend fun updateTransactionCategory(category: TransactionCategory)
+    suspend fun archiveTransactionCategory(id: String)
+    suspend fun unarchiveTransactionCategory(id: String)
+    suspend fun deleteTransactionCategory(category: TransactionCategory)
+
     // Profile
     fun getUserProfile(): Flow<UserProfile?>
     suspend fun updateUserProfile(profile: UserProfile)
@@ -62,6 +73,7 @@ class DefaultVittiqRepository(
     private val categoryDao: AccountCategoryDao = database.accountCategoryDao(),
     private val accountDao: AccountDao = database.accountDao(),
     private val transactionDao: TransactionDao = database.transactionDao(),
+    private val transactionCategoryDao: TransactionCategoryDao = database.transactionCategoryDao(),
     private val userProfileDao: UserProfileDao = database.userProfileDao(),
     private val currencyRateDao: CurrencyRateDao = database.currencyRateDao()
 ) : VittiqRepository {
@@ -148,27 +160,71 @@ class DefaultVittiqRepository(
     override suspend fun addTransaction(transaction: Transaction) {
         database.withTransaction {
             transactionDao.insert(transaction)
-            // Atomically adjust account balance
-            val delta = if (transaction.type == TransactionType.CREDIT) {
-                transaction.amount
-            } else {
-                -transaction.amount
+            when (transaction.type) {
+                TransactionType.TRANSFER -> {
+                    // Debit from source account
+                    accountDao.adjustBalance(transaction.accountId, -transaction.amount)
+                    // Credit to destination account
+                    transaction.toAccountId?.let { toAccId ->
+                        accountDao.adjustBalance(toAccId, transaction.amount)
+                    }
+                }
+                TransactionType.CREDIT -> {
+                    accountDao.adjustBalance(transaction.accountId, transaction.amount)
+                }
+                TransactionType.DEBIT -> {
+                    accountDao.adjustBalance(transaction.accountId, -transaction.amount)
+                }
             }
-            accountDao.adjustBalance(transaction.accountId, delta)
         }
     }
 
     override suspend fun deleteTransaction(transaction: Transaction) {
         database.withTransaction {
             transactionDao.delete(transaction)
-            // Revert balance adjustment
-            val delta = if (transaction.type == TransactionType.CREDIT) {
-                -transaction.amount
-            } else {
-                transaction.amount
+            when (transaction.type) {
+                TransactionType.TRANSFER -> {
+                    // Revert source debit (+amount)
+                    accountDao.adjustBalance(transaction.accountId, transaction.amount)
+                    // Revert destination credit (-amount)
+                    transaction.toAccountId?.let { toAccId ->
+                        accountDao.adjustBalance(toAccId, -transaction.amount)
+                    }
+                }
+                TransactionType.CREDIT -> {
+                    accountDao.adjustBalance(transaction.accountId, -transaction.amount)
+                }
+                TransactionType.DEBIT -> {
+                    accountDao.adjustBalance(transaction.accountId, transaction.amount)
+                }
             }
-            accountDao.adjustBalance(transaction.accountId, delta)
         }
+    }
+
+    override fun getAllActiveTransactionCategories(): Flow<List<TransactionCategory>> =
+        transactionCategoryDao.getAllActiveCategories()
+
+    override fun getAllTransactionCategories(): Flow<List<TransactionCategory>> =
+        transactionCategoryDao.getAllCategories()
+
+    override suspend fun insertTransactionCategory(category: TransactionCategory) {
+        transactionCategoryDao.insert(category)
+    }
+
+    override suspend fun updateTransactionCategory(category: TransactionCategory) {
+        transactionCategoryDao.update(category)
+    }
+
+    override suspend fun archiveTransactionCategory(id: String) {
+        transactionCategoryDao.archiveCategory(id)
+    }
+
+    override suspend fun unarchiveTransactionCategory(id: String) {
+        transactionCategoryDao.unarchiveCategory(id)
+    }
+
+    override suspend fun deleteTransactionCategory(category: TransactionCategory) {
+        transactionCategoryDao.delete(category)
     }
 
     override fun getUserProfile(): Flow<UserProfile?> = userProfileDao.getUserProfile()

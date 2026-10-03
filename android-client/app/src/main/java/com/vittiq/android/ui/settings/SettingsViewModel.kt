@@ -7,6 +7,7 @@ import com.vittiq.android.data.model.Account
 import com.vittiq.android.data.model.AccountCategory
 import com.vittiq.android.data.model.CategoryWithAccounts
 import com.vittiq.android.data.model.CurrencyRate
+import com.vittiq.android.data.model.TransactionCategory
 import com.vittiq.android.data.model.UserProfile
 import com.vittiq.android.data.repository.VittiqRepository
 import kotlinx.coroutines.flow.SharingStarted
@@ -20,7 +21,8 @@ data class SettingsUiState(
     val categoriesWithAccounts: List<CategoryWithAccounts> = emptyList(),
     val allCategories: List<AccountCategory> = emptyList(),
     val currencyRates: List<CurrencyRate> = emptyList(),
-    val userProfile: UserProfile? = null
+    val userProfile: UserProfile? = null,
+    val transactionCategories: List<TransactionCategory> = emptyList()
 )
 
 class SettingsViewModel(
@@ -31,13 +33,15 @@ class SettingsViewModel(
         repository.getCategoriesWithAccounts(),
         repository.getAllCategories(),
         repository.getAllCurrencyRates(),
-        repository.getUserProfile()
-    ) { cwa, cats, rates, profile ->
+        repository.getUserProfile(),
+        repository.getAllTransactionCategories()
+    ) { cwa, cats, rates, profile, txCats ->
         SettingsUiState(
             categoriesWithAccounts = cwa,
             allCategories = cats,
             currencyRates = rates,
-            userProfile = profile
+            userProfile = profile,
+            transactionCategories = txCats
         )
     }.stateIn(
         scope = viewModelScope,
@@ -51,6 +55,7 @@ class SettingsViewModel(
         }
     }
 
+    // Account Categories
     fun addCategory(name: String) {
         viewModelScope.launch {
             val maxOrder = uiState.value.allCategories.maxOfOrNull { it.displayOrder } ?: 0
@@ -76,6 +81,7 @@ class SettingsViewModel(
         }
     }
 
+    // Accounts
     fun addAccount(categoryId: String, name: String, initialBalance: Double) {
         viewModelScope.launch {
             val account = Account(
@@ -106,6 +112,39 @@ class SettingsViewModel(
     fun unarchiveAccount(accountId: String) {
         viewModelScope.launch {
             repository.unarchiveAccount(accountId)
+        }
+    }
+
+    // Transaction Categories
+    fun addTransactionCategory(name: String) {
+        viewModelScope.launch {
+            val maxOrder = uiState.value.transactionCategories.maxOfOrNull { it.displayOrder } ?: 0
+            val txCat = TransactionCategory(
+                id = UUID.randomUUID().toString(),
+                name = name.trim(),
+                displayOrder = maxOrder + 1,
+                isArchived = false,
+                isDefault = false
+            )
+            repository.insertTransactionCategory(txCat)
+        }
+    }
+
+    fun updateTransactionCategory(category: TransactionCategory) {
+        viewModelScope.launch {
+            repository.updateTransactionCategory(category)
+        }
+    }
+
+    fun archiveTransactionCategory(id: String) {
+        viewModelScope.launch {
+            repository.archiveTransactionCategory(id)
+        }
+    }
+
+    fun unarchiveTransactionCategory(id: String) {
+        viewModelScope.launch {
+            repository.unarchiveTransactionCategory(id)
         }
     }
 

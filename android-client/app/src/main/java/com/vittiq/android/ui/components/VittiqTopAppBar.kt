@@ -3,6 +3,7 @@ package com.vittiq.android.ui.components
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -191,20 +192,21 @@ fun VittiqTopAppBar(
                 )
             }
 
-            // Right Action buttons with balanced spacing
+            // Right Action buttons with balanced spacing and isolated touch targets
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 // Optional settings button (e.g. for profile or global access)
                 if (showSettingsAction) {
-                    IconButton(
-                        onClick = onSettingsClick,
+                    Box(
                         modifier = Modifier
-                            .size(38.dp)
+                            .size(40.dp)
                             .clip(CircleShape)
                             .background(SurfaceWhite)
                             .border(1.dp, CardBorder, CircleShape)
+                            .clickable(onClick = onSettingsClick),
+                        contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Outlined.Settings,
@@ -216,13 +218,14 @@ fun VittiqTopAppBar(
                 }
 
                 // Circular outlined action button with magnifying glass
-                IconButton(
-                    onClick = { onSearchActiveChange(true) },
+                Box(
                     modifier = Modifier
-                        .size(38.dp)
+                        .size(40.dp)
                         .clip(CircleShape)
                         .background(SurfaceWhite)
                         .border(1.dp, CardBorder, CircleShape)
+                        .clickable(onClick = { onSearchActiveChange(true) }),
+                    contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.Search,

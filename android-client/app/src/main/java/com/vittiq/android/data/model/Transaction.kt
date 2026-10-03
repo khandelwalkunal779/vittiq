@@ -16,7 +16,10 @@ import java.util.UUID
             onDelete = ForeignKey.CASCADE
         )
     ],
-    indices = [Index(value = ["accountId"])]
+    indices = [
+        Index(value = ["accountId"]),
+        Index(value = ["toAccountId"])
+    ]
 )
 data class Transaction(
     @PrimaryKey
@@ -27,6 +30,6 @@ data class Transaction(
     val category: String,
     val amount: Double,
     val type: TransactionType,
-    val description: String? = null
+    val description: String? = null,
+    val toAccountId: String? = null
 )
-

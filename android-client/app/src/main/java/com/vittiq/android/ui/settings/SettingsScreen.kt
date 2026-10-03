@@ -22,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.AccountTree
+import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.CurrencyExchange
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
@@ -62,6 +63,7 @@ fun SettingsScreen(
     currencyRates: List<CurrencyRate>,
     onRateUpdated: (CurrencyRate) -> Unit,
     onManageAccountsClick: () -> Unit,
+    onManageTransactionCategoriesClick: () -> Unit,
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -164,6 +166,54 @@ fun SettingsScreen(
                                     )
                                     Text(
                                         text = "Add, edit, or archive accounts and categories",
+                                        fontSize = 12.sp,
+                                        color = CharcoalBlue
+                                    )
+                                }
+                            }
+
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                contentDescription = null,
+                                tint = CharcoalBlue
+                            )
+                        }
+
+                        HorizontalDivider(color = Color(0xFFF1F5F9))
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable(onClick = onManageTransactionCategoriesClick)
+                                .padding(16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFFCCFBF1)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Category,
+                                        contentDescription = null,
+                                        tint = InkBlack,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column {
+                                    Text(
+                                        text = "Manage Transaction Categories",
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = InkBlack
+                                    )
+                                    Text(
+                                        text = "Add, rename, or archive transaction tags",
                                         fontSize = 12.sp,
                                         color = CharcoalBlue
                                     )
