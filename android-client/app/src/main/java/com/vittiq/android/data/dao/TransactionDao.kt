@@ -5,6 +5,7 @@ import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Update
 import com.vittiq.android.data.model.Transaction
 import kotlinx.coroutines.flow.Flow
 
@@ -33,6 +34,9 @@ interface TransactionDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(transactions: List<Transaction>)
+
+    @Update
+    suspend fun update(transaction: Transaction)
 
     @Delete
     suspend fun delete(transaction: Transaction)

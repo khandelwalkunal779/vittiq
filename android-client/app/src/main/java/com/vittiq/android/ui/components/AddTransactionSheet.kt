@@ -17,25 +17,34 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDefaults
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
@@ -68,8 +77,10 @@ import com.vittiq.android.theme.OceanMist
 import com.vittiq.android.theme.OceanMistSoft
 import com.vittiq.android.theme.SurfaceWhite
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 import java.util.UUID
 
 val PREDEFINED_CATEGORIES = listOf(
@@ -92,25 +103,76 @@ fun AddTransactionSheet(
     accounts: List<AccountWithCategory>,
     currencyRates: List<CurrencyRate>,
     transactionCategories: List<TransactionCategory> = emptyList(),
+    transactionToEdit: Transaction? = null,
     onDismiss: () -> Unit,
     onSaveTransaction: (Transaction) -> Unit,
+    onDeleteTransaction: ((Transaction) -> Unit)? = null,
     sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 ) {
+    val isEditMode = transactionToEdit != null
+    var showDeleteConfirmation by remember { mutableStateOf(false) }
+
     val categoryList = remember(transactionCategories) {
         val active = transactionCategories.filter { !it.isArchived }.map { it.name }
         if (active.isNotEmpty()) active else PREDEFINED_CATEGORIES
     }
 
-    var title by remember { mutableStateOf("") }
-    var selectedType by remember { mutableStateOf(TransactionType.DEBIT) }
+    var title by remember { mutableStateOf(transactionToEdit?.name ?: "") }
+    var selectedType by remember { mutableStateOf(transactionToEdit?.type ?: TransactionType.DEBIT) }
 
     // Account selections
-    var selectedAccount by remember(accounts) { mutableStateOf(accounts.firstOrNull()) }
-    var selectedFromAccount by remember(accounts) { mutableStateOf(accounts.firstOrNull()) }
-    var selectedToAccount by remember(accounts) { mutableStateOf(accounts.getOrNull(1) ?: accounts.firstOrNull()) }
+    var selectedAccount by remember(accounts, transactionToEdit) {
+        mutableStateOf(
+            if (transactionToEdit != null) {
+                accounts.find { it.account.id == transactionToEdit.accountId } ?: accounts.firstOrNull()
+            } else {
+                accounts.firstOrNull()
+            }
+        )
+    }
+    var selectedFromAccount by remember(accounts, transactionToEdit) {
+        mutableStateOf(
+            if (transactionToEdit != null) {
+                accounts.find { it.account.id == transactionToEdit.accountId } ?: accounts.firstOrNull()
+            } else {
+                accounts.firstOrNull()
+            }
+        )
+    }
+    var selectedToAccount by remember(accounts, transactionToEdit) {
+        mutableStateOf(
+            if (transactionToEdit?.toAccountId != null) {
+                accounts.find { it.account.id == transactionToEdit.toAccountId }
+                    ?: accounts.getOrNull(1)
+                    ?: accounts.firstOrNull()
+            } else {
+                accounts.getOrNull(1) ?: accounts.firstOrNull()
+            }
+        )
+    }
 
-    var selectedCategory by remember(categoryList) { mutableStateOf(categoryList.first()) }
-    var amountInput by remember { mutableStateOf("") }
+    var selectedCategory by remember(categoryList, transactionToEdit) {
+        mutableStateOf(
+            if (transactionToEdit != null && (categoryList.contains(transactionToEdit.category) || transactionToEdit.category.isNotBlank())) {
+                transactionToEdit.category
+            } else {
+                categoryList.first()
+            }
+        )
+    }
+    var amountInput by remember {
+        mutableStateOf(
+            if (transactionToEdit != null) {
+                if (transactionToEdit.amount % 1.0 == 0.0) {
+                    transactionToEdit.amount.toLong().toString()
+                } else {
+                    String.format(Locale.US, "%.2f", transactionToEdit.amount)
+                }
+            } else {
+                ""
+            }
+        )
+    }
 
     val defaultInrRate = remember(currencyRates) {
         currencyRates.find { it.currencyCode == "INR" }
@@ -120,9 +182,19 @@ fun AddTransactionSheet(
         mutableStateOf(defaultInrRate)
     }
 
-    val currentTimestamp = remember { System.currentTimeMillis() }
-    val formattedDate = remember(currentTimestamp) {
-        SimpleDateFormat("dd MMMM yyyy", Locale.getDefault()).format(Date(currentTimestamp))
+    var showDatePicker by remember { mutableStateOf(false) }
+    var selectedDateMillis by remember { mutableStateOf(transactionToEdit?.timestamp ?: System.currentTimeMillis()) }
+
+    val isToday = remember(selectedDateMillis) {
+        val cal1 = Calendar.getInstance().apply { timeInMillis = selectedDateMillis }
+        val cal2 = Calendar.getInstance()
+        cal1.get(Calendar.YEAR) == cal2.get(Calendar.YEAR) &&
+            cal1.get(Calendar.DAY_OF_YEAR) == cal2.get(Calendar.DAY_OF_YEAR)
+    }
+
+    val formattedDate = remember(selectedDateMillis, isToday) {
+        val dateStr = SimpleDateFormat("dd MMMM yyyy", Locale.getDefault()).format(Date(selectedDateMillis))
+        if (isToday) "$dateStr (Today)" else dateStr
     }
 
     var accountDropdownExpanded by remember { mutableStateOf(false) }
@@ -170,17 +242,33 @@ fun AddTransactionSheet(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = if (selectedType == TransactionType.TRANSFER) "New Transfer" else "New Transaction",
+                    text = when {
+                        isEditMode && selectedType == TransactionType.TRANSFER -> "Edit Transfer"
+                        isEditMode -> "Edit Transaction"
+                        selectedType == TransactionType.TRANSFER -> "New Transfer"
+                        else -> "New Transaction"
+                    },
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
                     color = InkBlack
                 )
-                IconButton(onClick = onDismiss) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "Close",
-                        tint = CharcoalBlue
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (isEditMode && onDeleteTransaction != null) {
+                        IconButton(onClick = { showDeleteConfirmation = true }) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Delete Transaction",
+                                tint = ExpenseRed
+                            )
+                        }
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Close",
+                            tint = CharcoalBlue
+                        )
+                    }
                 }
             }
 
@@ -624,7 +712,7 @@ fun AddTransactionSheet(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // 6. Date (pre-populated with current date)
+            // 6. Date (pre-populated with today or existing transaction date, editable)
             Text(text = "Date", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = CharcoalBlue)
             Spacer(modifier = Modifier.height(6.dp))
             Row(
@@ -633,20 +721,29 @@ fun AddTransactionSheet(
                     .height(56.dp)
                     .clip(RoundedCornerShape(14.dp))
                     .background(CardBorderSubtle)
+                    .clickable { showDatePicker = true }
                     .padding(horizontal = 16.dp),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.CalendarToday,
+                        contentDescription = "Date",
+                        tint = CharcoalBlue,
+                        modifier = Modifier.padding(end = 12.dp)
+                    )
+                    Text(
+                        text = formattedDate,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = InkBlack
+                    )
+                }
                 Icon(
-                    imageVector = Icons.Default.CalendarToday,
-                    contentDescription = "Date",
-                    tint = CharcoalBlue,
-                    modifier = Modifier.padding(end = 12.dp)
-                )
-                Text(
-                    text = "$formattedDate (Today)",
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = InkBlack
+                    imageVector = Icons.Default.ArrowDropDown,
+                    contentDescription = "Select Date",
+                    tint = CharcoalBlue
                 )
             }
 
@@ -665,8 +762,8 @@ fun AddTransactionSheet(
                         val fromAcc = selectedFromAccount ?: return@Button
                         val toAcc = selectedToAccount ?: return@Button
                         Transaction(
-                            id = UUID.randomUUID().toString(),
-                            timestamp = currentTimestamp,
+                            id = transactionToEdit?.id ?: UUID.randomUUID().toString(),
+                            timestamp = selectedDateMillis,
                             accountId = fromAcc.account.id,
                             toAccountId = toAcc.account.id,
                             name = title.trim(),
@@ -683,8 +780,8 @@ fun AddTransactionSheet(
                             accountWithCat.account.name
                         }
                         Transaction(
-                            id = UUID.randomUUID().toString(),
-                            timestamp = currentTimestamp,
+                            id = transactionToEdit?.id ?: UUID.randomUUID().toString(),
+                            timestamp = selectedDateMillis,
                             accountId = accountWithCat.account.id,
                             toAccountId = null,
                             name = title.trim(),
@@ -709,13 +806,145 @@ fun AddTransactionSheet(
                 )
             ) {
                 Text(
-                    text = if (selectedType == TransactionType.TRANSFER) "Record Transfer" else "Save Transaction",
+                    text = when {
+                        isEditMode && selectedType == TransactionType.TRANSFER -> "Update Transfer"
+                        isEditMode -> "Update Transaction"
+                        selectedType == TransactionType.TRANSFER -> "Record Transfer"
+                        else -> "Save Transaction"
+                    },
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp
                 )
             }
 
+            if (isEditMode && onDeleteTransaction != null) {
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedButton(
+                    onClick = { showDeleteConfirmation = true },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(54.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, ExpenseRed),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = ExpenseRed
+                    )
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "Delete Transaction",
+                        tint = ExpenseRed,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Delete Transaction",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        color = ExpenseRed
+                    )
+                }
+            }
+
             Spacer(modifier = Modifier.height(28.dp))
+        }
+    }
+
+    if (showDeleteConfirmation && transactionToEdit != null) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmation = false },
+            title = {
+                Text(
+                    text = "Delete Transaction?",
+                    fontWeight = FontWeight.Bold,
+                    color = InkBlack
+                )
+            },
+            text = {
+                Text(
+                    text = "Are you sure you want to delete '${transactionToEdit.name}'? This will permanently remove this transaction and revert account balance changes.",
+                    color = CharcoalBlue
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onDeleteTransaction?.invoke(transactionToEdit)
+                        showDeleteConfirmation = false
+                        onDismiss()
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = ExpenseRed,
+                        contentColor = SurfaceWhite
+                    )
+                ) {
+                    Text("Delete", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirmation = false }) {
+                    Text("Cancel", color = CharcoalBlue)
+                }
+            },
+            containerColor = SurfaceWhite
+        )
+    }
+
+    if (showDatePicker) {
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = selectedDateMillis
+        )
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        datePickerState.selectedDateMillis?.let { utcMillis ->
+                            val utcCal = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+                                timeInMillis = utcMillis
+                            }
+                            val localCal = Calendar.getInstance().apply {
+                                set(Calendar.YEAR, utcCal.get(Calendar.YEAR))
+                                set(Calendar.MONTH, utcCal.get(Calendar.MONTH))
+                                set(Calendar.DAY_OF_MONTH, utcCal.get(Calendar.DAY_OF_MONTH))
+                                val now = Calendar.getInstance()
+                                if (get(Calendar.YEAR) == now.get(Calendar.YEAR) &&
+                                    get(Calendar.DAY_OF_YEAR) == now.get(Calendar.DAY_OF_YEAR)
+                                ) {
+                                    set(Calendar.HOUR_OF_DAY, now.get(Calendar.HOUR_OF_DAY))
+                                    set(Calendar.MINUTE, now.get(Calendar.MINUTE))
+                                    set(Calendar.SECOND, now.get(Calendar.SECOND))
+                                } else {
+                                    set(Calendar.HOUR_OF_DAY, 12)
+                                    set(Calendar.MINUTE, 0)
+                                    set(Calendar.SECOND, 0)
+                                }
+                            }
+                            selectedDateMillis = localCal.timeInMillis
+                        }
+                        showDatePicker = false
+                    }
+                ) {
+                    Text("OK", color = InkBlack, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) {
+                    Text("Cancel", color = CharcoalBlue)
+                }
+            },
+            colors = DatePickerDefaults.colors(
+                containerColor = SurfaceWhite
+            )
+        ) {
+            DatePicker(
+                state = datePickerState,
+                colors = DatePickerDefaults.colors(
+                    selectedDayContainerColor = AmberGold,
+                    selectedDayContentColor = InkBlack,
+                    todayDateBorderColor = AmberGold
+                )
+            )
         }
     }
 }

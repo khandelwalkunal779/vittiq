@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.vittiq.android.data.model.AccountWithCategory
 import com.vittiq.android.data.model.CurrencyRate
 import com.vittiq.android.data.model.Transaction
+import com.vittiq.android.data.model.TransactionCategory
 import com.vittiq.android.data.repository.VittiqRepository
 import com.vittiq.android.ui.components.Formatters
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,6 +24,7 @@ data class LogsUiState(
     val groupedTransactions: Map<String, List<Transaction>> = emptyMap(),
     val accountsWithCategory: List<AccountWithCategory> = emptyList(),
     val currencyRates: List<CurrencyRate> = emptyList(),
+    val transactionCategories: List<TransactionCategory> = emptyList(),
     val totalTransactionsCount: Int = 0
 )
 
@@ -41,8 +43,9 @@ class LogsViewModel(
         activeCalendar,
         repository.getAllTransactions(),
         repository.getActiveAccountsWithCategory(),
-        repository.getAllCurrencyRates()
-    ) { cal, allTxs, accountsWithCat, rates ->
+        repository.getAllCurrencyRates(),
+        repository.getAllActiveTransactionCategories()
+    ) { cal, allTxs, accountsWithCat, rates, txCats ->
         val monthYearFormat = SimpleDateFormat("MMMM yyyy", Locale.getDefault())
         val monthYearText = monthYearFormat.format(cal.time)
 
@@ -64,6 +67,7 @@ class LogsViewModel(
             groupedTransactions = grouped,
             accountsWithCategory = accountsWithCat,
             currencyRates = rates,
+            transactionCategories = txCats,
             totalTransactionsCount = filteredTxs.size
         )
     }.stateIn(
@@ -89,6 +93,18 @@ class LogsViewModel(
     fun addTransaction(transaction: Transaction) {
         viewModelScope.launch {
             repository.addTransaction(transaction)
+        }
+    }
+
+    fun updateTransaction(oldTransaction: Transaction, newTransaction: Transaction) {
+        viewModelScope.launch {
+            repository.updateTransaction(oldTransaction, newTransaction)
+        }
+    }
+
+    fun deleteTransaction(transaction: Transaction) {
+        viewModelScope.launch {
+            repository.deleteTransaction(transaction)
         }
     }
 

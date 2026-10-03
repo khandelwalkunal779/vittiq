@@ -48,6 +48,7 @@ interface VittiqRepository {
     fun getTransactionsByAccount(accountId: String): Flow<List<Transaction>>
     fun searchTransactions(query: String): Flow<List<Transaction>>
     suspend fun addTransaction(transaction: Transaction)
+    suspend fun updateTransaction(oldTransaction: Transaction, newTransaction: Transaction)
     suspend fun deleteTransaction(transaction: Transaction)
 
     // Transaction Categories
@@ -176,6 +177,45 @@ class DefaultVittiqRepository(
                     accountDao.adjustBalance(transaction.accountId, -transaction.amount)
                 }
             }
+        }
+    }
+
+    override suspend fun updateTransaction(oldTransaction: Transaction, newTransaction: Transaction) {
+        database.withTransaction {
+            // 1. Revert old transaction's balance effects
+            when (oldTransaction.type) {
+                TransactionType.TRANSFER -> {
+                    accountDao.adjustBalance(oldTransaction.accountId, oldTransaction.amount)
+                    oldTransaction.toAccountId?.let { toAccId ->
+                        accountDao.adjustBalance(toAccId, -oldTransaction.amount)
+                    }
+                }
+                TransactionType.CREDIT -> {
+                    accountDao.adjustBalance(oldTransaction.accountId, -oldTransaction.amount)
+                }
+                TransactionType.DEBIT -> {
+                    accountDao.adjustBalance(oldTransaction.accountId, oldTransaction.amount)
+                }
+            }
+
+            // 2. Apply new transaction's balance effects
+            when (newTransaction.type) {
+                TransactionType.TRANSFER -> {
+                    accountDao.adjustBalance(newTransaction.accountId, -newTransaction.amount)
+                    newTransaction.toAccountId?.let { toAccId ->
+                        accountDao.adjustBalance(toAccId, newTransaction.amount)
+                    }
+                }
+                TransactionType.CREDIT -> {
+                    accountDao.adjustBalance(newTransaction.accountId, newTransaction.amount)
+                }
+                TransactionType.DEBIT -> {
+                    accountDao.adjustBalance(newTransaction.accountId, -newTransaction.amount)
+                }
+            }
+
+            // 3. Update the record
+            transactionDao.update(newTransaction)
         }
     }
 

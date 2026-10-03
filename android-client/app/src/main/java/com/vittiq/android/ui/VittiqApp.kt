@@ -199,7 +199,13 @@ fun VittiqApp(
                                 uiState = logsState,
                                 onPreviousMonth = { logsViewModel.previousMonth() },
                                 onNextMonth = { logsViewModel.nextMonth() },
-                                onAddClick = { isAddSheetOpen = true }
+                                onAddClick = { isAddSheetOpen = true },
+                                onEditTransaction = { oldTx, newTx ->
+                                    logsViewModel.updateTransaction(oldTx, newTx)
+                                },
+                                onDeleteTransaction = { tx ->
+                                    logsViewModel.deleteTransaction(tx)
+                                }
                             )
                         }
                         VittiqTab.AI_INSIGHTS -> {
