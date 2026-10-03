@@ -6,30 +6,35 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.vittiq.android.data.dao.AccountCategoryDao
 import com.vittiq.android.data.dao.AccountDao
 import com.vittiq.android.data.dao.CurrencyRateDao
 import com.vittiq.android.data.dao.TransactionDao
 import com.vittiq.android.data.dao.UserProfileDao
 import com.vittiq.android.data.model.Account
-import com.vittiq.android.data.model.AccountType
+import com.vittiq.android.data.model.AccountCategory
 import com.vittiq.android.data.model.CurrencyRate
 import com.vittiq.android.data.model.Transaction
-import com.vittiq.android.data.model.TransactionType
 import com.vittiq.android.data.model.UserProfile
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import java.util.Calendar
-import java.util.TimeZone
 
 @Database(
-    entities = [Account::class, Transaction::class, UserProfile::class, CurrencyRate::class],
-    version = 1,
+    entities = [
+        AccountCategory::class,
+        Account::class,
+        Transaction::class,
+        UserProfile::class,
+        CurrencyRate::class
+    ],
+    version = 2,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
 abstract class VittiqDatabase : RoomDatabase() {
 
+    abstract fun accountCategoryDao(): AccountCategoryDao
     abstract fun accountDao(): AccountDao
     abstract fun transactionDao(): TransactionDao
     abstract fun userProfileDao(): UserProfileDao
@@ -37,15 +42,23 @@ abstract class VittiqDatabase : RoomDatabase() {
 
     companion object {
         @Volatile
-        private var INSTANCE: VittiqDatabase? = null
+        internal var INSTANCE: VittiqDatabase? = null
 
-        // Constant IDs for default accounts so transactions can establish foreign key links
-        const val ACCOUNT_ID_BANK = "acc-bank-checking"
-        const val ACCOUNT_ID_CASH = "acc-cash-wallet"
-        const val ACCOUNT_ID_CARDS = "acc-cards-credit"
-        const val ACCOUNT_ID_INVESTMENTS = "acc-investments"
-        const val ACCOUNT_ID_EWALLETS = "acc-ewallets"
-        const val ACCOUNT_ID_OTHERS = "acc-others"
+        // Constant IDs for default categories
+        const val CATEGORY_ID_ACCOUNTS = "cat-accounts"
+        const val CATEGORY_ID_CARDS = "cat-cards"
+        const val CATEGORY_ID_CASH = "cat-cash"
+        const val CATEGORY_ID_INVESTMENTS = "cat-investments"
+        const val CATEGORY_ID_EWALLETS = "cat-ewallets"
+        const val CATEGORY_ID_OTHERS = "cat-others"
+
+        // Default initial account IDs
+        const val ACCOUNT_ID_DEFAULT_ACCOUNTS = "acc-default-accounts"
+        const val ACCOUNT_ID_DEFAULT_CARDS = "acc-default-cards"
+        const val ACCOUNT_ID_DEFAULT_CASH = "acc-default-cash"
+        const val ACCOUNT_ID_DEFAULT_INVESTMENTS = "acc-default-investments"
+        const val ACCOUNT_ID_DEFAULT_EWALLETS = "acc-default-ewallets"
+        const val ACCOUNT_ID_DEFAULT_OTHERS = "acc-default-others"
 
         fun getDatabase(
             context: Context,
@@ -65,230 +78,133 @@ abstract class VittiqDatabase : RoomDatabase() {
             }
         }
     }
+}
 
-    private class VittiqDatabaseCallback(
-        private val scope: CoroutineScope
-    ) : RoomDatabase.Callback() {
-        override fun onCreate(db: SupportSQLiteDatabase) {
-            super.onCreate(db)
-            INSTANCE?.let { database ->
-                scope.launch(Dispatchers.IO) {
-                    populateInitialData(database)
-                }
+private class VittiqDatabaseCallback(
+    private val scope: CoroutineScope
+) : RoomDatabase.Callback() {
+    override fun onCreate(db: SupportSQLiteDatabase) {
+        super.onCreate(db)
+        VittiqDatabase.INSTANCE?.let { database ->
+            scope.launch(Dispatchers.IO) {
+                populateCleanSlateData(database)
             }
         }
+    }
 
-        override fun onOpen(db: SupportSQLiteDatabase) {
-            super.onOpen(db)
-            INSTANCE?.let { database ->
-                scope.launch(Dispatchers.IO) {
-                    if (database.accountDao().getCount() == 0) {
-                        populateInitialData(database)
-                    }
+    override fun onOpen(db: SupportSQLiteDatabase) {
+        super.onOpen(db)
+        VittiqDatabase.INSTANCE?.let { database ->
+            scope.launch(Dispatchers.IO) {
+                if (database.accountCategoryDao().getCount() == 0) {
+                    populateCleanSlateData(database)
                 }
             }
         }
     }
 }
 
-suspend fun populateInitialData(database: VittiqDatabase) {
+suspend fun populateCleanSlateData(database: VittiqDatabase) {
+    val categoryDao = database.accountCategoryDao()
     val accountDao = database.accountDao()
-    val transactionDao = database.transactionDao()
     val userProfileDao = database.userProfileDao()
     val currencyRateDao = database.currencyRateDao()
 
-    // 1. Pre-populate Accounts matching Vittiq (Home).png
+    // 1. Seed 6 Core Account Categories
+    val initialCategories = listOf(
+        AccountCategory(
+            id = VittiqDatabase.CATEGORY_ID_ACCOUNTS,
+            name = "Accounts",
+            displayOrder = 1,
+            isCustom = false
+        ),
+        AccountCategory(
+            id = VittiqDatabase.CATEGORY_ID_CARDS,
+            name = "Cards",
+            displayOrder = 2,
+            isCustom = false
+        ),
+        AccountCategory(
+            id = VittiqDatabase.CATEGORY_ID_CASH,
+            name = "Cash",
+            displayOrder = 3,
+            isCustom = false
+        ),
+        AccountCategory(
+            id = VittiqDatabase.CATEGORY_ID_INVESTMENTS,
+            name = "Investments",
+            displayOrder = 4,
+            isCustom = false
+        ),
+        AccountCategory(
+            id = VittiqDatabase.CATEGORY_ID_EWALLETS,
+            name = "e-Wallets",
+            displayOrder = 5,
+            isCustom = false
+        ),
+        AccountCategory(
+            id = VittiqDatabase.CATEGORY_ID_OTHERS,
+            name = "Others",
+            displayOrder = 6,
+            isCustom = false
+        )
+    )
+    categoryDao.insertAll(initialCategories)
+
+    // 2. Under each category, seed exactly ONE default Account sharing the category name with 0.00 balance
     val initialAccounts = listOf(
         Account(
-            id = VittiqDatabase.ACCOUNT_ID_BANK,
+            id = VittiqDatabase.ACCOUNT_ID_DEFAULT_ACCOUNTS,
+            categoryId = VittiqDatabase.CATEGORY_ID_ACCOUNTS,
             name = "Accounts",
-            type = AccountType.BANK_ACCOUNT,
-            currentBalance = 8430.00,
-            subcategoriesCount = 4,
-            isProfit = true
+            initialBalance = 0.0,
+            currentBalance = 0.0,
+            isArchived = false
         ),
         Account(
-            id = VittiqDatabase.ACCOUNT_ID_CASH,
-            name = "Cash",
-            type = AccountType.CASH,
-            currentBalance = 14200.00,
-            subcategoriesCount = 2,
-            isProfit = false
-        ),
-        Account(
-            id = VittiqDatabase.ACCOUNT_ID_CARDS,
+            id = VittiqDatabase.ACCOUNT_ID_DEFAULT_CARDS,
+            categoryId = VittiqDatabase.CATEGORY_ID_CARDS,
             name = "Cards",
-            type = AccountType.CARD,
-            currentBalance = 8430.00,
-            subcategoriesCount = 4,
-            isProfit = true
+            initialBalance = 0.0,
+            currentBalance = 0.0,
+            isArchived = false
         ),
         Account(
-            id = VittiqDatabase.ACCOUNT_ID_INVESTMENTS,
+            id = VittiqDatabase.ACCOUNT_ID_DEFAULT_CASH,
+            categoryId = VittiqDatabase.CATEGORY_ID_CASH,
+            name = "Cash",
+            initialBalance = 0.0,
+            currentBalance = 0.0,
+            isArchived = false
+        ),
+        Account(
+            id = VittiqDatabase.ACCOUNT_ID_DEFAULT_INVESTMENTS,
+            categoryId = VittiqDatabase.CATEGORY_ID_INVESTMENTS,
             name = "Investments",
-            type = AccountType.INVESTMENT,
-            currentBalance = 8430.00,
-            subcategoriesCount = 4,
-            isProfit = true
+            initialBalance = 0.0,
+            currentBalance = 0.0,
+            isArchived = false
         ),
         Account(
-            id = VittiqDatabase.ACCOUNT_ID_EWALLETS,
+            id = VittiqDatabase.ACCOUNT_ID_DEFAULT_EWALLETS,
+            categoryId = VittiqDatabase.CATEGORY_ID_EWALLETS,
             name = "e-Wallets",
-            type = AccountType.E_WALLET,
-            currentBalance = 8430.00,
-            subcategoriesCount = 4,
-            isProfit = true
+            initialBalance = 0.0,
+            currentBalance = 0.0,
+            isArchived = false
         ),
         Account(
-            id = VittiqDatabase.ACCOUNT_ID_OTHERS,
+            id = VittiqDatabase.ACCOUNT_ID_DEFAULT_OTHERS,
+            categoryId = VittiqDatabase.CATEGORY_ID_OTHERS,
             name = "Others",
-            type = AccountType.OTHER,
-            currentBalance = 8430.00,
-            subcategoriesCount = 4,
-            isProfit = true
+            initialBalance = 0.0,
+            currentBalance = 0.0,
+            isArchived = false
         )
     )
     accountDao.insertAll(initialAccounts)
 
-    // Helper to construct exact timestamps
-    fun getTimestamp(year: Int, month: Int, day: Int, hour: Int, minute: Int): Long {
-        return Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
-            set(Calendar.YEAR, year)
-            set(Calendar.MONTH, month - 1)
-            set(Calendar.DAY_OF_MONTH, day)
-            set(Calendar.HOUR_OF_DAY, hour)
-            set(Calendar.MINUTE, minute)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-        }.timeInMillis
-    }
-
-    // 2. Pre-populate Transactions matching Vittiq (Logs).png
-    // We add both July 2026 transactions and current month transactions so both display immediately
-    val now = Calendar.getInstance()
-    val curYear = now.get(Calendar.YEAR)
-    val curMonth = now.get(Calendar.MONTH) + 1
-    val curDay = now.get(Calendar.DAY_OF_MONTH)
-
-    val transactionsToInsert = mutableListOf<Transaction>()
-
-    // July 2026 transactions matching mockup
-    transactionsToInsert.addAll(
-        listOf(
-            Transaction(
-                id = "tx-1-chipotle",
-                timestamp = getTimestamp(2026, 7, 9, 13, 15),
-                accountId = VittiqDatabase.ACCOUNT_ID_BANK,
-                name = "Chipotle",
-                category = "Food & Dining",
-                amount = 13.50,
-                type = TransactionType.DEBIT,
-                description = "Chase Checking"
-            ),
-            Transaction(
-                id = "tx-2-paycheck",
-                timestamp = getTimestamp(2026, 7, 9, 9, 0),
-                accountId = VittiqDatabase.ACCOUNT_ID_BANK,
-                name = "Paycheck",
-                category = "Income",
-                amount = 2620.00,
-                type = TransactionType.CREDIT,
-                description = "Payroll Direct Deposit"
-            ),
-            Transaction(
-                id = "tx-3-wholefoods",
-                timestamp = getTimestamp(2026, 7, 8, 17, 30),
-                accountId = VittiqDatabase.ACCOUNT_ID_BANK,
-                name = "Whole Foods",
-                category = "Groceries",
-                amount = 87.34,
-                type = TransactionType.DEBIT,
-                description = "Chase Checking"
-            ),
-            Transaction(
-                id = "tx-4-uberpool",
-                timestamp = getTimestamp(2026, 7, 8, 8, 45),
-                accountId = VittiqDatabase.ACCOUNT_ID_CARDS,
-                name = "UberPool",
-                category = "Transportation",
-                amount = 42.00,
-                type = TransactionType.DEBIT,
-                description = "Chase Credit"
-            ),
-            Transaction(
-                id = "tx-5-starbucks",
-                timestamp = getTimestamp(2026, 7, 7, 8, 15),
-                accountId = VittiqDatabase.ACCOUNT_ID_BANK,
-                name = "Starbucks",
-                category = "Coffee",
-                amount = 8.75,
-                type = TransactionType.DEBIT,
-                description = "Chase Checking"
-            ),
-            Transaction(
-                id = "tx-6-rentrefund",
-                timestamp = getTimestamp(2026, 7, 6, 14, 20),
-                accountId = VittiqDatabase.ACCOUNT_ID_BANK,
-                name = "Rent Refund",
-                category = "Housing",
-                amount = 1250.00,
-                type = TransactionType.CREDIT,
-                description = "Chase Savings"
-            )
-        )
-    )
-
-    // If current date is not July 2026, duplicate entries for current month so home & logs immediately show data
-    if (!(curYear == 2026 && curMonth == 7)) {
-        transactionsToInsert.addAll(
-            listOf(
-                Transaction(
-                    id = "tx-cur-1-chipotle",
-                    timestamp = getTimestamp(curYear, curMonth, curDay, 13, 15),
-                    accountId = VittiqDatabase.ACCOUNT_ID_BANK,
-                    name = "Chipotle",
-                    category = "Food & Dining",
-                    amount = 13.50,
-                    type = TransactionType.DEBIT,
-                    description = "Chase Checking"
-                ),
-                Transaction(
-                    id = "tx-cur-2-paycheck",
-                    timestamp = getTimestamp(curYear, curMonth, curDay, 9, 0),
-                    accountId = VittiqDatabase.ACCOUNT_ID_BANK,
-                    name = "Paycheck",
-                    category = "Income",
-                    amount = 2620.00,
-                    type = TransactionType.CREDIT,
-                    description = "Payroll Direct Deposit"
-                ),
-                Transaction(
-                    id = "tx-cur-3-wholefoods",
-                    timestamp = getTimestamp(curYear, curMonth, if (curDay > 1) curDay - 1 else 1, 17, 30),
-                    accountId = VittiqDatabase.ACCOUNT_ID_BANK,
-                    name = "Whole Foods",
-                    category = "Groceries",
-                    amount = 87.34,
-                    type = TransactionType.DEBIT,
-                    description = "Chase Checking"
-                ),
-                Transaction(
-                    id = "tx-cur-4-uberpool",
-                    timestamp = getTimestamp(curYear, curMonth, if (curDay > 1) curDay - 1 else 1, 8, 45),
-                    accountId = VittiqDatabase.ACCOUNT_ID_CARDS,
-                    name = "UberPool",
-                    category = "Transportation",
-                    amount = 42.00,
-                    type = TransactionType.DEBIT,
-                    description = "Chase Credit"
-                )
-            )
-        )
-    }
-
-    transactionDao.insertAll(transactionsToInsert)
-
-    // 3. Pre-populate UserProfile
+    // 3. UserProfile
     val initialProfile = UserProfile(
         id = 1,
         firstName = "Kunal",
@@ -298,7 +214,7 @@ suspend fun populateInitialData(database: VittiqDatabase) {
     )
     userProfileDao.insert(initialProfile)
 
-    // 4. Pre-populate Currency Rates
+    // 4. Currency Rates
     val initialRates = listOf(
         CurrencyRate(currencyCode = "INR", symbol = "₹", rateToInr = 1.0),
         CurrencyRate(currencyCode = "USD", symbol = "$", rateToInr = 83.50),
@@ -309,5 +225,7 @@ suspend fun populateInitialData(database: VittiqDatabase) {
         CurrencyRate(currencyCode = "CAD", symbol = "C$", rateToInr = 61.20)
     )
     currencyRateDao.insertAll(initialRates)
+
+    // Clean-slate mandate: ZERO transactions seeded
 }
 

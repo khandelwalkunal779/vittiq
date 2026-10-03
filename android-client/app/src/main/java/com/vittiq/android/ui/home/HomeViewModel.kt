@@ -3,7 +3,8 @@ package com.vittiq.android.ui.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.vittiq.android.data.model.Account
+import com.vittiq.android.data.model.AccountCategory
+import com.vittiq.android.data.model.AccountWithCategory
 import com.vittiq.android.data.model.CurrencyRate
 import com.vittiq.android.data.model.Transaction
 import com.vittiq.android.data.model.TransactionType
@@ -16,12 +17,21 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.Calendar
 
+data class HomeCategoryItem(
+    val category: AccountCategory,
+    val accountsCount: Int,
+    val totalBalance: Double,
+    val isProfit: Boolean
+)
+
 data class HomeUiState(
-    val accounts: List<Account> = emptyList(),
+    val categories: List<HomeCategoryItem> = emptyList(),
+    val accountsWithCategory: List<AccountWithCategory> = emptyList(),
     val totalNetWorth: Double = 0.0,
-    val monthlyIncome: Double = 5240.0,
-    val monthlyExpenses: Double = 3120.0,
-    val monthlySavings: Double = 2120.0,
+    val monthlyTrendPercentage: Double? = null,
+    val monthlyIncome: Double = 0.0,
+    val monthlyExpenses: Double = 0.0,
+    val monthlySavings: Double = 0.0,
     val userProfile: UserProfile? = null,
     val currencyRates: List<CurrencyRate> = emptyList()
 )
@@ -31,42 +41,64 @@ class HomeViewModel(
 ) : ViewModel() {
 
     val uiState: StateFlow<HomeUiState> = combine(
-        repository.getAllAccounts(),
+        repository.getCategoriesWithAccounts(),
+        repository.getActiveAccountsWithCategory(),
         repository.getAllTransactions(),
         repository.getUserProfile(),
         repository.getAllCurrencyRates()
-    ) { accounts, transactions, profile, rates ->
-        val totalNetWorth = accounts.sumOf { it.currentBalance }
-
-        // Filter current month transactions for income/expenses summary
-        val now = Calendar.getInstance()
-        val currentYear = now.get(Calendar.YEAR)
-        val currentMonth = now.get(Calendar.MONTH)
-
-        val cal = Calendar.getInstance()
-        val currentMonthTxs = transactions.filter { tx ->
-            cal.timeInMillis = tx.timestamp
-            cal.get(Calendar.YEAR) == currentYear && cal.get(Calendar.MONTH) == currentMonth
+    ) { categoriesWithAccounts, accountsWithCat, transactions, profile, rates ->
+        val categoryItems = categoriesWithAccounts.map { cwa ->
+            val activeAccounts = cwa.accounts.filter { !it.isArchived }
+            val total = activeAccounts.sumOf { it.currentBalance }
+            val initialTotal = activeAccounts.sumOf { it.initialBalance }
+            HomeCategoryItem(
+                category = cwa.category,
+                accountsCount = activeAccounts.size,
+                totalBalance = total,
+                isProfit = total >= initialTotal
+            )
         }
 
+        val totalNetWorth = accountsWithCat.sumOf { it.account.currentBalance }
+
+        // Start of current calendar month in millis
+        val startOfMonthCal = Calendar.getInstance().apply {
+            set(Calendar.DAY_OF_MONTH, 1)
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        val startOfMonthMillis = startOfMonthCal.timeInMillis
+
+        // Current month transactions
+        val currentMonthTxs = transactions.filter { it.timestamp >= startOfMonthMillis }
         val calculatedIncome = currentMonthTxs
             .filter { it.type == TransactionType.CREDIT }
             .sumOf { it.amount }
         val calculatedExpenses = currentMonthTxs
             .filter { it.type == TransactionType.DEBIT }
             .sumOf { it.amount }
+        val calculatedSavings = calculatedIncome - calculatedExpenses
 
-        // If newly initialized or no transactions in current month, fallback to seed metrics from design
-        val displayIncome = if (calculatedIncome > 0) calculatedIncome else 5240.0
-        val displayExpenses = if (calculatedExpenses > 0) calculatedExpenses else 3120.0
-        val displaySavings = displayIncome - displayExpenses
+        // Previous month closing net worth
+        val hasPriorTransactions = transactions.any { it.timestamp < startOfMonthMillis }
+        val priorMonthClosingNetWorth = totalNetWorth - calculatedIncome + calculatedExpenses
+
+        val trendPercentage: Double? = if (hasPriorTransactions && priorMonthClosingNetWorth > 0.0) {
+            ((totalNetWorth - priorMonthClosingNetWorth) / priorMonthClosingNetWorth) * 100.0
+        } else {
+            null
+        }
 
         HomeUiState(
-            accounts = accounts,
+            categories = categoryItems,
+            accountsWithCategory = accountsWithCat,
             totalNetWorth = totalNetWorth,
-            monthlyIncome = displayIncome,
-            monthlyExpenses = displayExpenses,
-            monthlySavings = displaySavings,
+            monthlyTrendPercentage = trendPercentage,
+            monthlyIncome = calculatedIncome,
+            monthlyExpenses = calculatedExpenses,
+            monthlySavings = calculatedSavings,
             userProfile = profile,
             currencyRates = rates
         )
@@ -89,3 +121,4 @@ class HomeViewModel(
         }
     }
 }
+

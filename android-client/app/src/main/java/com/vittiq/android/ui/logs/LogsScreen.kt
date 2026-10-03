@@ -272,7 +272,7 @@ private fun DateGroupCard(transactions: List<Transaction>) {
 }
 
 @Composable
-private fun TransactionRow(transaction: Transaction) {
+internal fun TransactionRow(transaction: Transaction) {
     val isCredit = transaction.type == TransactionType.CREDIT
     val iconInfo = getCategoryVisuals(transaction.category, transaction.name)
 
@@ -373,7 +373,7 @@ private fun EmptyLogsCard() {
     }
 }
 
-private fun getCategoryVisuals(category: String, title: String): Triple<ImageVector, Color, Color> {
+internal fun getCategoryVisuals(category: String, title: String): Triple<ImageVector, Color, Color> {
     val lower = "${category.lowercase()} ${title.lowercase()}"
     return when {
         lower.contains("paycheck") || lower.contains("income") ->

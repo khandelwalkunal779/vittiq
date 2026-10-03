@@ -50,7 +50,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.vittiq.android.data.model.Account
+import com.vittiq.android.data.model.AccountWithCategory
 import com.vittiq.android.data.model.CurrencyRate
 import com.vittiq.android.data.model.Transaction
 import com.vittiq.android.data.model.TransactionType
@@ -85,7 +85,7 @@ val PREDEFINED_CATEGORIES = listOf(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddTransactionSheet(
-    accounts: List<Account>,
+    accounts: List<AccountWithCategory>,
     currencyRates: List<CurrencyRate>,
     onDismiss: () -> Unit,
     onSaveTransaction: (Transaction) -> Unit,
@@ -214,7 +214,7 @@ fun AddTransactionSheet(
             OutlinedTextField(
                 value = title,
                 onValueChange = { title = it },
-                placeholder = { Text("e.g. Chipotle, Whole Foods, Paycheck", color = CharcoalBlue.copy(alpha = 0.5f)) },
+                placeholder = { Text("e.g. ICICI Deposit, Metro, Groceries", color = CharcoalBlue.copy(alpha = 0.5f)) },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 shape = RoundedCornerShape(14.dp),
@@ -319,7 +319,7 @@ fun AddTransactionSheet(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // 4. Account Dropdown
+            // 4. Account Dropdown (Lists individual accounts with parent category: "Account Name · Category")
             Text(text = "Account", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = CharcoalBlue)
             Spacer(modifier = Modifier.height(6.dp))
             Box(modifier = Modifier.fillMaxWidth()) {
@@ -335,10 +335,11 @@ fun AddTransactionSheet(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = selectedAccount?.let { "${it.name} (${Formatters.formatInr(it.currentBalance)})" }
-                            ?: "Select Account",
+                        text = selectedAccount?.let {
+                            "${it.account.name} · ${it.category.name} (${Formatters.formatInr(it.account.currentBalance)})"
+                        } ?: "Select Account",
                         color = if (selectedAccount != null) InkBlack else CharcoalBlue.copy(alpha = 0.5f),
-                        fontSize = 15.sp,
+                        fontSize = 14.sp,
                         fontWeight = FontWeight.Medium
                     )
                     Icon(
@@ -353,19 +354,36 @@ fun AddTransactionSheet(
                     onDismissRequest = { accountDropdownExpanded = false },
                     modifier = Modifier.fillMaxWidth(0.9f)
                 ) {
-                    accounts.forEach { account ->
+                    accounts.forEach { accountWithCat ->
                         DropdownMenuItem(
                             text = {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text(account.name, fontWeight = FontWeight.SemiBold)
-                                    Text(Formatters.formatInr(account.currentBalance), color = CharcoalBlue)
+                                    Column {
+                                        Text(
+                                            text = accountWithCat.account.name,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = InkBlack
+                                        )
+                                        Text(
+                                            text = accountWithCat.category.name,
+                                            fontSize = 11.sp,
+                                            color = CharcoalBlue
+                                        )
+                                    }
+                                    Text(
+                                        text = Formatters.formatInr(accountWithCat.account.currentBalance),
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = InkBlack
+                                    )
                                 }
                             },
                             onClick = {
-                                selectedAccount = account
+                                selectedAccount = accountWithCat
                                 accountDropdownExpanded = false
                             }
                         )
@@ -453,21 +471,21 @@ fun AddTransactionSheet(
             // 7. Save CTA Button
             Button(
                 onClick = {
-                    val account = selectedAccount ?: return@Button
+                    val accountWithCat = selectedAccount ?: return@Button
                     val finalAmountInInr = if (selectedCurrency.currencyCode == "INR") {
                         parsedAmount
                     } else {
                         convertedInrAmount
                     }
                     val description = if (selectedCurrency.currencyCode != "INR") {
-                        "${account.name} (Paid ${selectedCurrency.symbol}$amountInput)"
+                        "${accountWithCat.account.name} (Paid ${selectedCurrency.symbol}$amountInput)"
                     } else {
-                        account.name
+                        accountWithCat.account.name
                     }
                     val transaction = Transaction(
                         id = UUID.randomUUID().toString(),
                         timestamp = currentTimestamp,
-                        accountId = account.id,
+                        accountId = accountWithCat.account.id,
                         name = title.trim(),
                         category = selectedCategory,
                         amount = finalAmountInInr,
@@ -506,3 +524,4 @@ fun AddTransactionSheet(
         }
     }
 }
+

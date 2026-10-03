@@ -1,9 +1,9 @@
 plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.compose.compiler)
-  alias(libs.plugins.kotlin.serialization)
   alias(libs.plugins.ksp)
 }
+layout.buildDirectory.set(file("C:/Users/khand/AppData/Local/Temp/vittiq-build/app"))
 
 android {
     namespace = "com.vittiq.android"

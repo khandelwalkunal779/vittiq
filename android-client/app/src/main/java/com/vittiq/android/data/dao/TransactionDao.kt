@@ -16,6 +16,15 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions WHERE accountId = :accountId ORDER BY timestamp DESC")
     fun getTransactionsByAccount(accountId: String): Flow<List<Transaction>>
 
+    @Query("""
+        SELECT * FROM transactions 
+        WHERE name LIKE '%' || :query || '%' 
+           OR category LIKE '%' || :query || '%' 
+           OR (description IS NOT NULL AND description LIKE '%' || :query || '%')
+        ORDER BY timestamp DESC
+    """)
+    fun searchTransactions(query: String): Flow<List<Transaction>>
+
     @Query("SELECT COUNT(*) FROM transactions")
     suspend fun getCount(): Int
 
@@ -28,4 +37,3 @@ interface TransactionDao {
     @Delete
     suspend fun delete(transaction: Transaction)
 }
-

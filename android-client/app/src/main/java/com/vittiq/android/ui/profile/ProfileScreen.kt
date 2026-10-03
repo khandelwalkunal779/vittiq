@@ -19,9 +19,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.CurrencyExchange
+import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -29,10 +30,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -41,39 +38,22 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.vittiq.android.data.model.CurrencyRate
 import com.vittiq.android.theme.AmberGold
+import com.vittiq.android.theme.AmberGoldSoft
 import com.vittiq.android.theme.BrightSnow
-import com.vittiq.android.theme.CardBorder
 import com.vittiq.android.theme.CardBorderSubtle
 import com.vittiq.android.theme.CharcoalBlue
 import com.vittiq.android.theme.InkBlack
 import com.vittiq.android.theme.OceanMist
 import com.vittiq.android.theme.OceanMistSoft
 import com.vittiq.android.theme.SurfaceWhite
-import com.vittiq.android.ui.components.CurrencySettingsDialog
 
 @Composable
 fun ProfileScreen(
     uiState: ProfileUiState,
-    onRateUpdated: (CurrencyRate) -> Unit,
-    showCurrencyDialogDirectly: Boolean = false,
-    onDismissCurrencyDialogDirectly: () -> Unit = {},
+    onNavigateToSettings: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var showCurrencyDialog by remember { mutableStateOf(false) }
-
-    if (showCurrencyDialog || showCurrencyDialogDirectly) {
-        CurrencySettingsDialog(
-            rates = uiState.currencyRates,
-            onDismiss = {
-                showCurrencyDialog = false
-                onDismissCurrencyDialogDirectly()
-            },
-            onRateUpdated = onRateUpdated
-        )
-    }
-
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
@@ -150,7 +130,6 @@ fun ProfileScreen(
                         .fillMaxWidth()
                         .padding(20.dp)
                 ) {
-                    // Header row: Teal clock icon + title + description
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.Top
@@ -196,14 +175,11 @@ fun ProfileScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        // Left: Login / Coming soon
                         StatusSubCard(
                             label = "Login",
                             status = "Coming soon",
                             modifier = Modifier.weight(1f)
                         )
-
-                        // Right: Sync / Coming soon
                         StatusSubCard(
                             label = "Sync",
                             status = "Coming soon",
@@ -240,15 +216,16 @@ fun ProfileScreen(
             }
         }
 
-        // 3. Currency Rates Settings Card (Requested by user)
+        // 3. Settings Card Entry (Navigates to dedicated SettingsScreen)
         item {
             Card(
                 shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.5.dp),
                 modifier = Modifier
                     .fillMaxWidth()
                     .border(1.dp, CardBorderSubtle, RoundedCornerShape(20.dp))
-                    .clickable { showCurrencyDialog = true }
+                    .clickable { onNavigateToSettings() }
             ) {
                 Row(
                     modifier = Modifier
@@ -258,14 +235,14 @@ fun ProfileScreen(
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(38.dp)
+                            .size(42.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFFFEF3C7)),
+                            .background(AmberGoldSoft),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = Icons.Outlined.CurrencyExchange,
-                            contentDescription = "Currency Rates",
+                            imageVector = Icons.Outlined.Settings,
+                            contentDescription = "Settings",
                             tint = Color(0xFFD97706),
                             modifier = Modifier.size(20.dp)
                         )
@@ -275,32 +252,25 @@ fun ProfileScreen(
 
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Currency Conversion Rates",
-                            fontSize = 14.sp,
+                            text = "Settings & Preferences",
+                            fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
                             color = InkBlack
                         )
+                        Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "Edit base exchange rates relative to INR",
+                            text = "Manage accounts, categories & exchange rates",
                             fontSize = 12.sp,
                             color = CharcoalBlue
                         )
                     }
 
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(BrightSnow)
-                            .border(1.dp, CardBorder, RoundedCornerShape(12.dp))
-                            .padding(horizontal = 10.dp, vertical = 6.dp)
-                    ) {
-                        Text(
-                            text = "Edit",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = InkBlack
-                        )
-                    }
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+                        contentDescription = null,
+                        tint = CharcoalBlue.copy(alpha = 0.6f),
+                        modifier = Modifier.size(14.dp)
+                    )
                 }
             }
         }
@@ -371,3 +341,4 @@ private fun StatusSubCard(
         )
     }
 }
+

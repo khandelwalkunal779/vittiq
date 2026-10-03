@@ -3,7 +3,7 @@ package com.vittiq.android.ui.logs
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.vittiq.android.data.model.Account
+import com.vittiq.android.data.model.AccountWithCategory
 import com.vittiq.android.data.model.CurrencyRate
 import com.vittiq.android.data.model.Transaction
 import com.vittiq.android.data.repository.VittiqRepository
@@ -21,7 +21,7 @@ import java.util.Locale
 data class LogsUiState(
     val monthYearText: String = "",
     val groupedTransactions: Map<String, List<Transaction>> = emptyMap(),
-    val accounts: List<Account> = emptyList(),
+    val accountsWithCategory: List<AccountWithCategory> = emptyList(),
     val currencyRates: List<CurrencyRate> = emptyList(),
     val totalTransactionsCount: Int = 0
 )
@@ -30,11 +30,9 @@ class LogsViewModel(
     private val repository: VittiqRepository
 ) : ViewModel() {
 
-    // Default to July 2026 to showcase reference mockups immediately
+    // Pre-populated default based on current datetime
     private val activeCalendar = MutableStateFlow<Calendar>(
         Calendar.getInstance().apply {
-            set(Calendar.YEAR, 2026)
-            set(Calendar.MONTH, Calendar.JULY)
             set(Calendar.DAY_OF_MONTH, 1)
         }
     )
@@ -42,9 +40,9 @@ class LogsViewModel(
     val uiState: StateFlow<LogsUiState> = combine(
         activeCalendar,
         repository.getAllTransactions(),
-        repository.getAllAccounts(),
+        repository.getActiveAccountsWithCategory(),
         repository.getAllCurrencyRates()
-    ) { cal, allTxs, accounts, rates ->
+    ) { cal, allTxs, accountsWithCat, rates ->
         val monthYearFormat = SimpleDateFormat("MMMM yyyy", Locale.getDefault())
         val monthYearText = monthYearFormat.format(cal.time)
 
@@ -64,7 +62,7 @@ class LogsViewModel(
         LogsUiState(
             monthYearText = monthYearText,
             groupedTransactions = grouped,
-            accounts = accounts,
+            accountsWithCategory = accountsWithCat,
             currencyRates = rates,
             totalTransactionsCount = filteredTxs.size
         )
@@ -101,3 +99,4 @@ class LogsViewModel(
         }
     }
 }
+

@@ -5,14 +5,29 @@ import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Update
 import com.vittiq.android.data.model.Account
+import com.vittiq.android.data.model.AccountWithCategory
 import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface AccountDao {
-    @Query("SELECT * FROM accounts ORDER BY name ASC")
+    @Query("SELECT * FROM accounts WHERE isArchived = 0 ORDER BY name ASC")
+    fun getAllActiveAccounts(): Flow<List<Account>>
+
+    @Query("SELECT * FROM accounts ORDER BY isArchived ASC, name ASC")
     fun getAllAccounts(): Flow<List<Account>>
+
+    @Transaction
+    @Query("SELECT * FROM accounts WHERE isArchived = 0 ORDER BY name ASC")
+    fun getActiveAccountsWithCategory(): Flow<List<AccountWithCategory>>
+
+    @Query("SELECT * FROM accounts WHERE categoryId = :categoryId AND isArchived = 0 ORDER BY name ASC")
+    fun getActiveAccountsByCategoryId(categoryId: String): Flow<List<Account>>
+
+    @Query("SELECT * FROM accounts WHERE categoryId = :categoryId ORDER BY isArchived ASC, name ASC")
+    fun getAllAccountsByCategoryId(categoryId: String): Flow<List<Account>>
 
     @Query("SELECT * FROM accounts WHERE id = :id")
     fun getAccountById(id: String): Flow<Account?>
@@ -22,6 +37,9 @@ interface AccountDao {
 
     @Query("SELECT COUNT(*) FROM accounts")
     suspend fun getCount(): Int
+
+    @Query("SELECT COUNT(*) FROM transactions WHERE accountId = :accountId")
+    suspend fun getTransactionCountForAccount(accountId: String): Int
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(account: Account)
@@ -34,6 +52,12 @@ interface AccountDao {
 
     @Delete
     suspend fun delete(account: Account)
+
+    @Query("UPDATE accounts SET isArchived = 1 WHERE id = :id")
+    suspend fun archiveAccount(id: String)
+
+    @Query("UPDATE accounts SET isArchived = 0 WHERE id = :id")
+    suspend fun unarchiveAccount(id: String)
 
     @Query("UPDATE accounts SET currentBalance = :newBalance WHERE id = :accountId")
     suspend fun updateBalance(accountId: String, newBalance: Double)

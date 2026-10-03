@@ -23,9 +23,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
+import androidx.compose.material.icons.automirrored.outlined.TrendingUp
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.outlined.AccountBalance
 import androidx.compose.material.icons.outlined.AccountBalanceWallet
-import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.Category
+import androidx.compose.material.icons.outlined.CreditCard
+import androidx.compose.material.icons.outlined.Wallet
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FloatingActionButton
@@ -40,8 +44,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.vittiq.android.data.model.Account
-import com.vittiq.android.data.model.AccountType
 import com.vittiq.android.theme.AmberGold
 import com.vittiq.android.theme.AmberGoldSoft
 import com.vittiq.android.theme.BrightSnow
@@ -55,11 +57,14 @@ import com.vittiq.android.theme.OceanMistSoft
 import com.vittiq.android.theme.SurfaceWhite
 import com.vittiq.android.theme.TextMuted
 import com.vittiq.android.ui.components.Formatters
+import java.util.Locale
 
 @Composable
 fun HomeScreen(
     uiState: HomeUiState,
     onAddClick: () -> Unit,
+    onSeeAllAccountsClick: () -> Unit = {},
+    onCategoryClick: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -78,6 +83,7 @@ fun HomeScreen(
             item(span = { GridItemSpan(2) }) {
                 HeroNetWorthCard(
                     totalNetWorth = uiState.totalNetWorth,
+                    trendPercentage = uiState.monthlyTrendPercentage,
                     income = uiState.monthlyIncome,
                     expenses = uiState.monthlyExpenses,
                     savings = uiState.monthlySavings
@@ -105,7 +111,7 @@ fun HomeScreen(
                             .clip(RoundedCornerShape(20.dp))
                             .border(1.dp, CardBorder, RoundedCornerShape(20.dp))
                             .background(SurfaceWhite)
-                            .clickable { /* See all */ }
+                            .clickable { onSeeAllAccountsClick() }
                             .padding(horizontal = 12.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -126,9 +132,12 @@ fun HomeScreen(
                 }
             }
 
-            // 3. 2-Column Accounts Grid
-            items(uiState.accounts, key = { it.id }) { account ->
-                AccountCard(account = account)
+            // 3. 2-Column Category Grid
+            items(uiState.categories, key = { it.category.id }) { item ->
+                CategoryGridCard(
+                    item = item,
+                    onClick = { onCategoryClick(item.category.id) }
+                )
             }
         }
 
@@ -167,6 +176,7 @@ fun HomeScreen(
 @Composable
 private fun HeroNetWorthCard(
     totalNetWorth: Double,
+    trendPercentage: Double?,
     income: Double,
     expenses: Double,
     savings: Double
@@ -219,32 +229,40 @@ private fun HeroNetWorthCard(
                 )
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            // Month-over-month trend pill (Hidden if no prior month transactions or prior net worth was 0)
+            if (trendPercentage != null) {
+                Spacer(modifier = Modifier.height(10.dp))
+                val isPositive = trendPercentage >= 0.0
+                val formattedPercent = String.format(Locale.US, "%.1f", kotlin.math.abs(trendPercentage))
+                val arrow = if (isPositive) "↗ +" else "↘ -"
+                val pillText = "$arrow$formattedPercent% this month"
+                val pillColor = if (isPositive) OceanMist else AmberGold
+                val pillBg = if (isPositive) Color(0xFF133838) else Color(0xFF382A13)
 
-            // Performance Pill
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0xFF133838))
-                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(pillBg)
+                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = pillText,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = pillColor
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "↗ +2.4% this month",
+                        text = "vs last month",
                         fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = OceanMist
+                        fontWeight = FontWeight.Normal,
+                        color = TextMuted
                     )
                 }
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "vs last month",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Normal,
-                    color = TextMuted
-                )
             }
 
             Spacer(modifier = Modifier.height(20.dp))
@@ -330,8 +348,11 @@ private fun HeroNetWorthCard(
 }
 
 @Composable
-private fun AccountCard(account: Account) {
-    val iconInfo = getAccountIcon(account.type)
+private fun CategoryGridCard(
+    item: HomeCategoryItem,
+    onClick: () -> Unit
+) {
+    val iconInfo = getCategoryVisual(item.category.name)
 
     Card(
         shape = RoundedCornerShape(20.dp),
@@ -340,6 +361,7 @@ private fun AccountCard(account: Account) {
         modifier = Modifier
             .fillMaxWidth()
             .border(1.dp, CardBorderSubtle, RoundedCornerShape(20.dp))
+            .clickable { onClick() }
     ) {
         Column(
             modifier = Modifier
@@ -361,7 +383,7 @@ private fun AccountCard(account: Account) {
                 ) {
                     Icon(
                         imageVector = iconInfo.first,
-                        contentDescription = account.name,
+                        contentDescription = item.category.name,
                         tint = iconInfo.third,
                         modifier = Modifier.size(18.dp)
                     )
@@ -370,23 +392,23 @@ private fun AccountCard(account: Account) {
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
-                        .background(if (account.isProfit) OceanMistSoft else AmberGoldSoft)
+                        .background(if (item.isProfit) OceanMistSoft else AmberGoldSoft)
                         .padding(horizontal = 8.dp, vertical = 3.dp)
                 ) {
                     Text(
-                        text = if (account.isProfit) "PROFIT" else "LOSS",
+                        text = if (item.isProfit) "PROFIT" else "LOSS",
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
-                        color = if (account.isProfit) Color(0xFF0F766E) else Color(0xFFB45309)
+                        color = if (item.isProfit) Color(0xFF0F766E) else Color(0xFFB45309)
                     )
                 }
             }
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Account Name
+            // Category Name
             Text(
-                text = account.name,
+                text = item.category.name,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
                 color = CharcoalBlue
@@ -394,9 +416,9 @@ private fun AccountCard(account: Account) {
 
             Spacer(modifier = Modifier.height(2.dp))
 
-            // Balance
+            // Aggregated Balance
             Text(
-                text = Formatters.formatInr(account.currentBalance, includeDecimals = false),
+                text = Formatters.formatInr(item.totalBalance, includeDecimals = false),
                 fontSize = 18.sp,
                 fontWeight = FontWeight.ExtraBold,
                 color = InkBlack
@@ -404,9 +426,10 @@ private fun AccountCard(account: Account) {
 
             Spacer(modifier = Modifier.height(2.dp))
 
-            // Subcategories count
+            // Subcategories / accounts count
+            val countText = if (item.accountsCount == 1) "1 Account" else "${item.accountsCount} Accounts"
             Text(
-                text = "${account.subcategoriesCount} Subcategories",
+                text = countText,
                 fontSize = 11.sp,
                 color = TextMuted
             )
@@ -414,13 +437,13 @@ private fun AccountCard(account: Account) {
     }
 }
 
-private fun getAccountIcon(type: AccountType): Triple<ImageVector, Color, Color> {
-    return when (type) {
-        AccountType.BANK_ACCOUNT -> Triple(Icons.Outlined.Person, Color(0xFFF1F5F9), CharcoalBlue)
-        AccountType.CASH -> Triple(Icons.Outlined.AccountBalanceWallet, AmberGoldSoft, Color(0xFFD97706))
-        AccountType.CARD -> Triple(Icons.Outlined.Person, Color(0xFFF1F5F9), CharcoalBlue)
-        AccountType.INVESTMENT -> Triple(Icons.Outlined.Person, Color(0xFFF1F5F9), CharcoalBlue)
-        AccountType.E_WALLET -> Triple(Icons.Outlined.Person, Color(0xFFF1F5F9), CharcoalBlue)
-        AccountType.OTHER -> Triple(Icons.Outlined.Person, Color(0xFFF1F5F9), CharcoalBlue)
+internal fun getCategoryVisual(categoryName: String): Triple<ImageVector, Color, Color> {
+    return when (categoryName.lowercase()) {
+        "accounts", "bank accounts" -> Triple(Icons.Outlined.AccountBalance, Color(0xFFF1F5F9), CharcoalBlue)
+        "cards", "credit cards" -> Triple(Icons.Outlined.CreditCard, Color(0xFFEFF6FF), Color(0xFF2563EB))
+        "cash" -> Triple(Icons.Outlined.AccountBalanceWallet, AmberGoldSoft, Color(0xFFD97706))
+        "investments" -> Triple(Icons.AutoMirrored.Outlined.TrendingUp, OceanMistSoft, Color(0xFF0F766E))
+        "e-wallets", "wallets" -> Triple(Icons.Outlined.Wallet, Color(0xFFF5F3FF), Color(0xFF7C3AED))
+        else -> Triple(Icons.Outlined.Category, Color(0xFFF1F5F9), CharcoalBlue)
     }
 }
