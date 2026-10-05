@@ -26,6 +26,15 @@ interface TransactionDao {
     """)
     fun searchTransactions(query: String): Flow<List<Transaction>>
 
+    @Query("SELECT DISTINCT name FROM transactions WHERE name LIKE '%' || :query || '%' ORDER BY timestamp DESC LIMIT 10")
+    fun searchDistinctTitles(query: String): Flow<List<String>>
+
+    @Query("SELECT DISTINCT name FROM transactions ORDER BY timestamp DESC LIMIT 20")
+    fun getRecentDistinctTitles(): Flow<List<String>>
+
+    @Query("SELECT * FROM transactions WHERE LOWER(TRIM(name)) = LOWER(TRIM(:title))")
+    suspend fun getTransactionsByTitle(title: String): List<Transaction>
+
     @Query("SELECT COUNT(*) FROM transactions")
     suspend fun getCount(): Int
 

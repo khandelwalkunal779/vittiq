@@ -64,6 +64,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.vittiq.android.data.model.AccountWithCategory
+import com.vittiq.android.data.model.TitleDefaults
 import com.vittiq.android.data.model.Transaction
 import com.vittiq.android.data.model.TransactionType
 import com.vittiq.android.theme.AmberGold
@@ -95,6 +96,8 @@ fun LogsScreen(
     onAddClick: () -> Unit,
     onEditTransaction: ((oldTransaction: Transaction, newTransaction: Transaction) -> Unit)? = null,
     onDeleteTransaction: ((Transaction) -> Unit)? = null,
+    onSearchTitles: (suspend (String) -> List<String>)? = null,
+    onResolveTitleDefaults: (suspend (String) -> TitleDefaults?)? = null,
     modifier: Modifier = Modifier
 ) {
     var selectedTransactionForDetails by remember { mutableStateOf<Transaction?>(null) }
@@ -200,6 +203,8 @@ fun LogsScreen(
                 currencyRates = uiState.currencyRates,
                 transactionCategories = uiState.transactionCategories,
                 transactionToEdit = txToEdit,
+                onSearchTitles = onSearchTitles,
+                onResolveTitleDefaults = onResolveTitleDefaults,
                 onDismiss = { editingTransaction = null },
                 onSaveTransaction = { updatedTx ->
                     onEditTransaction?.invoke(txToEdit, updatedTx)

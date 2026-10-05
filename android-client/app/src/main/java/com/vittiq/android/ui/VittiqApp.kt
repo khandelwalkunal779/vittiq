@@ -211,7 +211,9 @@ fun VittiqApp(
                                 },
                                 onDeleteTransaction = { tx ->
                                     logsViewModel.deleteTransaction(tx)
-                                }
+                                },
+                                onSearchTitles = { logsViewModel.searchTitles(it) },
+                                onResolveTitleDefaults = { logsViewModel.resolveTitleDefaults(it) }
                             )
                         }
                         VittiqTab.AI_INSIGHTS -> {
@@ -236,6 +238,8 @@ fun VittiqApp(
                         accounts = homeState.accountsWithCategory,
                         currencyRates = homeState.currencyRates,
                         transactionCategories = settingsState.transactionCategories,
+                        onSearchTitles = { homeViewModel.searchTitles(it) },
+                        onResolveTitleDefaults = { homeViewModel.resolveTitleDefaults(it) },
                         onDismiss = { isAddSheetOpen = false },
                         onSaveTransaction = { transaction ->
                             homeViewModel.addTransaction(transaction)

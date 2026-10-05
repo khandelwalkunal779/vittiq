@@ -13,6 +13,7 @@ import com.vittiq.android.data.model.AccountCategory
 import com.vittiq.android.data.model.AccountWithCategory
 import com.vittiq.android.data.model.CategoryWithAccounts
 import com.vittiq.android.data.model.CurrencyRate
+import com.vittiq.android.data.model.TitleDefaults
 import com.vittiq.android.data.model.Transaction
 import com.vittiq.android.data.model.TransactionCategory
 import com.vittiq.android.data.model.TransactionType
@@ -50,6 +51,10 @@ interface VittiqRepository {
     fun getAllTransactions(): Flow<List<Transaction>>
     fun getTransactionsByAccount(accountId: String): Flow<List<Transaction>>
     fun searchTransactions(query: String): Flow<List<Transaction>>
+    fun searchDistinctTitles(query: String): Flow<List<String>>
+    fun getRecentDistinctTitles(): Flow<List<String>>
+    suspend fun getTransactionsByTitle(title: String): List<Transaction>
+    suspend fun resolveTitleDefaults(title: String): TitleDefaults?
     suspend fun addTransaction(transaction: Transaction)
     suspend fun updateTransaction(oldTransaction: Transaction, newTransaction: Transaction)
     suspend fun deleteTransaction(transaction: Transaction)
@@ -165,6 +170,61 @@ class DefaultVittiqRepository(
 
     override fun searchTransactions(query: String): Flow<List<Transaction>> =
         transactionDao.searchTransactions(query)
+
+    override fun searchDistinctTitles(query: String): Flow<List<String>> =
+        transactionDao.searchDistinctTitles(query)
+
+    override fun getRecentDistinctTitles(): Flow<List<String>> =
+        transactionDao.getRecentDistinctTitles()
+
+    override suspend fun getTransactionsByTitle(title: String): List<Transaction> =
+        transactionDao.getTransactionsByTitle(title)
+
+    override suspend fun resolveTitleDefaults(title: String): TitleDefaults? {
+        val trimmed = title.trim()
+        if (trimmed.isEmpty()) return null
+        val txs = transactionDao.getTransactionsByTitle(trimmed)
+        if (txs.isEmpty()) return null
+
+        val dominantType = txs.groupingBy { it.type }.eachCount().maxByOrNull { it.value }?.key ?: TransactionType.DEBIT
+        val typeFiltered = txs.filter { it.type == dominantType }
+
+        return if (dominantType == TransactionType.TRANSFER) {
+            val mostFrequentPair = typeFiltered
+                .groupingBy { Pair(it.accountId, it.toAccountId) }
+                .eachCount()
+                .maxByOrNull { it.value }
+                ?.key
+
+            if (mostFrequentPair != null && mostFrequentPair.second != null) {
+                TitleDefaults(
+                    title = trimmed,
+                    type = TransactionType.TRANSFER,
+                    primaryAccountId = mostFrequentPair.first,
+                    toAccountId = mostFrequentPair.second
+                )
+            } else {
+                null
+            }
+        } else {
+            val mostFrequentAccount = typeFiltered
+                .groupingBy { it.accountId }
+                .eachCount()
+                .maxByOrNull { it.value }
+                ?.key
+
+            if (mostFrequentAccount != null) {
+                TitleDefaults(
+                    title = trimmed,
+                    type = dominantType,
+                    primaryAccountId = mostFrequentAccount,
+                    toAccountId = null
+                )
+            } else {
+                null
+            }
+        }
+    }
 
     override suspend fun addTransaction(transaction: Transaction) {
         database.withTransaction {

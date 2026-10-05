@@ -47,22 +47,30 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.PopupProperties
+import com.vittiq.android.ai.GoogleAiCoreCategoryClassifier
 import com.vittiq.android.data.model.AccountWithCategory
 import com.vittiq.android.data.model.CurrencyRate
+import com.vittiq.android.data.model.TitleDefaults
 import com.vittiq.android.data.model.Transaction
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import com.vittiq.android.data.model.TransactionCategory
 import com.vittiq.android.data.model.TransactionType
 import com.vittiq.android.theme.AmberGold
@@ -104,6 +112,8 @@ fun AddTransactionSheet(
     currencyRates: List<CurrencyRate>,
     transactionCategories: List<TransactionCategory> = emptyList(),
     transactionToEdit: Transaction? = null,
+    onSearchTitles: (suspend (String) -> List<String>)? = null,
+    onResolveTitleDefaults: (suspend (String) -> TitleDefaults?)? = null,
     onDismiss: () -> Unit,
     onSaveTransaction: (Transaction) -> Unit,
     onDeleteTransaction: ((Transaction) -> Unit)? = null,
@@ -111,6 +121,14 @@ fun AddTransactionSheet(
 ) {
     val isEditMode = transactionToEdit != null
     var showDeleteConfirmation by remember { mutableStateOf(false) }
+
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    val classifier = remember(context) { GoogleAiCoreCategoryClassifier(context) }
+
+    var titleSuggestions by remember { mutableStateOf<List<String>>(emptyList()) }
+    var titleDropdownExpanded by remember { mutableStateOf(false) }
+    var hasUserModifiedTitle by remember { mutableStateOf(false) }
 
     val categoryList = remember(transactionCategories) {
         val active = transactionCategories.filter { !it.isArchived }.map { it.name }
@@ -180,6 +198,57 @@ fun AddTransactionSheet(
     }
     var selectedCurrency by remember(currencyRates) {
         mutableStateOf(defaultInrRate)
+    }
+
+    suspend fun applyTitleDefaults(targetTitle: String) {
+        val trimmed = targetTitle.trim()
+        if (trimmed.isEmpty()) return
+
+        // 1. Frequency-based account and transaction type pre-population
+        onResolveTitleDefaults?.invoke(trimmed)?.let { defaults ->
+            if (defaults.type == TransactionType.TRANSFER) {
+                selectedType = TransactionType.TRANSFER
+                accounts.find { it.account.id == defaults.primaryAccountId }?.let {
+                    selectedFromAccount = it
+                }
+                defaults.toAccountId?.let { toId ->
+                    accounts.find { it.account.id == toId }?.let {
+                        selectedToAccount = it
+                    }
+                }
+                if (categoryList.contains("Transfer")) {
+                    selectedCategory = "Transfer"
+                }
+            } else {
+                selectedType = defaults.type
+                accounts.find { it.account.id == defaults.primaryAccountId }?.let {
+                    selectedAccount = it
+                }
+            }
+        }
+
+        // 2. On-Device AI category classification (Google AICore / Gemini Nano)
+        classifier.classifyCategory(trimmed, categoryList)?.let { predictedCat ->
+            if (categoryList.contains(predictedCat)) {
+                selectedCategory = predictedCat
+            }
+        }
+    }
+
+    LaunchedEffect(title) {
+        val trimmed = title.trim()
+        if (trimmed.length >= 2) {
+            onSearchTitles?.let { search ->
+                val results = search(trimmed)
+                titleSuggestions = results.filter { !it.equals(trimmed, ignoreCase = true) }
+            }
+            delay(400)
+            if (!isEditMode || hasUserModifiedTitle) {
+                applyTitleDefaults(trimmed)
+            }
+        } else {
+            titleSuggestions = emptyList()
+        }
     }
 
     var showDatePicker by remember { mutableStateOf(false) }
@@ -345,26 +414,65 @@ fun AddTransactionSheet(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 2. Title Field
+            // 2. Title Field with Autocomplete
             Text(text = "Title", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = CharcoalBlue)
             Spacer(modifier = Modifier.height(6.dp))
-            OutlinedTextField(
-                value = title,
-                onValueChange = { title = it },
-                placeholder = {
-                    Text(
-                        if (selectedType == TransactionType.TRANSFER) "e.g. Bank to Cash, ATM Withdrawal" else "e.g. Chipotle, Whole Foods, Paycheck",
-                        color = CharcoalBlue.copy(alpha = 0.5f)
+            Box(modifier = Modifier.fillMaxWidth()) {
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = {
+                        title = it
+                        hasUserModifiedTitle = true
+                        titleDropdownExpanded = it.isNotBlank()
+                    },
+                    placeholder = {
+                        Text(
+                            if (selectedType == TransactionType.TRANSFER) "e.g. Bank to Cash, ATM Withdrawal" else "e.g. Chipotle, Whole Foods, Paycheck",
+                            color = CharcoalBlue.copy(alpha = 0.5f)
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    shape = RoundedCornerShape(14.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = InkBlack,
+                        unfocusedBorderColor = CardBorder
                     )
-                },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                shape = RoundedCornerShape(14.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = InkBlack,
-                    unfocusedBorderColor = CardBorder
                 )
-            )
+
+                if (titleDropdownExpanded && titleSuggestions.isNotEmpty()) {
+                    DropdownMenu(
+                        expanded = titleDropdownExpanded,
+                        onDismissRequest = { titleDropdownExpanded = false },
+                        properties = PopupProperties(focusable = false),
+                        modifier = Modifier
+                            .fillMaxWidth(0.88f)
+                            .background(SurfaceWhite)
+                    ) {
+                        titleSuggestions.forEach { suggestion ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = suggestion,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = InkBlack
+                                    )
+                                },
+                                onClick = {
+                                    title = suggestion
+                                    hasUserModifiedTitle = true
+                                    titleDropdownExpanded = false
+                                    titleSuggestions = emptyList()
+                                    coroutineScope.launch {
+                                        applyTitleDefaults(suggestion)
+                                    }
+                                }
+                            )
+                        }
+                    }
+                }
+            }
 
             Spacer(modifier = Modifier.height(14.dp))
 
@@ -430,6 +538,9 @@ fun AddTransactionSheet(
                     },
                     placeholder = { Text("0.00", color = CharcoalBlue.copy(alpha = 0.5f)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    visualTransformation = remember(selectedCurrency) {
+                        CurrencyAmountVisualTransformation(isIndianFormat = selectedCurrency.currencyCode == "INR")
+                    },
                     modifier = Modifier.weight(1f),
                     singleLine = true,
                     shape = RoundedCornerShape(14.dp),

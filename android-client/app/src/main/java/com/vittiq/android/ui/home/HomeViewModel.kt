@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.vittiq.android.data.model.AccountCategory
 import com.vittiq.android.data.model.AccountWithCategory
 import com.vittiq.android.data.model.CurrencyRate
+import com.vittiq.android.data.model.TitleDefaults
 import com.vittiq.android.data.model.Transaction
 import com.vittiq.android.data.model.TransactionType
 import com.vittiq.android.data.model.UserProfile
@@ -13,6 +14,7 @@ import com.vittiq.android.data.repository.VittiqRepository
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.Calendar
@@ -112,6 +114,18 @@ class HomeViewModel(
         viewModelScope.launch {
             repository.addTransaction(transaction)
         }
+    }
+
+    suspend fun searchTitles(query: String): List<String> {
+        return if (query.isBlank()) {
+            repository.getRecentDistinctTitles().first()
+        } else {
+            repository.searchDistinctTitles(query).first()
+        }
+    }
+
+    suspend fun resolveTitleDefaults(title: String): TitleDefaults? {
+        return repository.resolveTitleDefaults(title)
     }
 
     class Factory(private val repository: VittiqRepository) : ViewModelProvider.Factory {
